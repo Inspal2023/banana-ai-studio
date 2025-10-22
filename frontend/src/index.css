@@ -97,61 +97,14 @@
   }
 }
 
-/* P0 - LOGO文字镂空描边发光效果 */
+/* P0 - LOGO文字黑色描边镂空效果 */
 .logo-text {
   font-family: 'SimHei', 'Microsoft YaHei', 'PingFang SC', 'Heiti SC', sans-serif;
   font-size: 2rem;
   font-weight: 700;
   color: transparent;
-  -webkit-text-stroke: 2px #FFFFFF;
-  text-stroke: 2px #FFFFFF;
-  text-shadow:
-    0 0 10px #FFB800,
-    0 0 20px #FFB800,
-    0 0 30px #FFB800,
-    0 0 40px #F59E0B,
-    0 0 70px #F59E0B,
-    0 0 80px #F59E0B,
-    -2px -2px 0 #F59E0B,
-    2px -2px 0 #F59E0B,
-    -2px 2px 0 #F59E0B,
-    2px 2px 0 #F59E0B;
-  animation: logo-glow 2s ease-in-out infinite alternate;
-  will-change: text-shadow;
-}
-
-@keyframes logo-glow {
-  from {
-    text-shadow:
-      0 0 10px #FFB800,
-      0 0 20px #FFB800,
-      0 0 30px #FFB800,
-      0 0 40px #F59E0B,
-      0 0 70px #F59E0B,
-      -2px -2px 0 #F59E0B,
-      2px -2px 0 #F59E0B,
-      -2px 2px 0 #F59E0B,
-      2px 2px 0 #F59E0B;
-  }
-  to {
-    text-shadow:
-      0 0 20px #FFB800,
-      0 0 30px #FFB800,
-      0 0 40px #FFB800,
-      0 0 70px #F59E0B,
-      0 0 80px #F59E0B,
-      0 0 90px #F59E0B,
-      -2px -2px 0 #F59E0B,
-      2px -2px 0 #F59E0B,
-      -2px 2px 0 #F59E0B,
-      2px 2px 0 #F59E0B;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .logo-text {
-    animation: none;
-  }
+  -webkit-text-stroke: 2px #000000;
+  text-stroke: 2px #000000;
 }
 
 /* P1 - Tab标签渐变发光效果 - 已修改为白色粗体 */
