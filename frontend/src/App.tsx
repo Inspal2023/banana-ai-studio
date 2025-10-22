@@ -52,7 +52,7 @@ function App() {
       {/* 头部导航栏 - 只包含LOGO和标题 */}
       <header className="bg-white border-b-2 border-neutral-300">
         <div className="max-w-[1400px] mx-auto px-xxxl h-32 flex items-center">
-          <img src="/images/logo.png" alt="香蕉AI工作室" className="h-32 w-auto" />
+          <img src="/images/logo.png" alt="香蕉AI工作室" className="h-48 w-auto" />
           <h1 className="logo-text ml-lg">香蕉AI工作室</h1>
         </div>
       </header>
