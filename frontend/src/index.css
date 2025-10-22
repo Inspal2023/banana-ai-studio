@@ -1,0 +1,436 @@
+/* @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+QingKe+HuangYou&display=swap'); */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 50%, #FDE68A 100%);
+    min-height: 100vh;
+    font-family: 'SimHei', 'Microsoft YaHei', 'PingFang SC', 'Heiti SC', sans-serif;
+    color: #18181B;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'SimHei', 'Microsoft YaHei', 'PingFang SC', 'Heiti SC', sans-serif;
+  }
+}
+
+@layer components {
+  /* Tab组件 */
+  .tab-button {
+    @apply flex items-center justify-center gap-sm px-lg py-md h-16 rounded-lg font-heading text-2xl font-semibold transition-all duration-normal;
+  }
+
+  .tab-active {
+    @apply bg-primary-500 text-white shadow-card scale-102;
+  }
+
+  .tab-inactive {
+    @apply bg-neutral-100 text-neutral-600 hover:bg-neutral-200;
+  }
+
+  /* 卡片 */
+  .card {
+    @apply bg-white rounded-lg border-2 border-neutral-300 shadow-card p-xxl;
+  }
+
+  /* 主按钮 */
+  .btn-primary {
+    @apply w-full h-14 bg-primary-500 text-white font-semibold rounded-md transition-all duration-normal hover:bg-primary-700 hover:-translate-y-1 active:scale-96 disabled:bg-neutral-300 disabled:text-neutral-600 disabled:cursor-not-allowed disabled:shadow-none;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+  }
+
+  /* 次要按钮 */
+  .btn-secondary {
+    @apply h-11 px-lg bg-secondary-500 text-white font-medium rounded-md transition-all duration-normal hover:bg-secondary-700;
+  }
+
+  /* 上传区域 */
+  .upload-area {
+    @apply w-full h-60 border-2 border-dashed border-neutral-300 rounded-xl bg-white flex flex-col items-center justify-center gap-md transition-all duration-normal cursor-pointer;
+  }
+
+  .upload-area:hover {
+    @apply bg-primary-100 border-primary-500;
+  }
+
+  /* 加载动画 */
+  .loading-spinner {
+    @apply w-8 h-8 border-3 border-neutral-300 border-t-primary-500 rounded-full animate-spin;
+  }
+
+  /* 选项按钮 */
+  .option-button {
+    @apply h-12 px-lg rounded-md border-2 font-medium transition-all duration-normal;
+  }
+
+  .option-selected {
+    @apply bg-primary-100 border-primary-500 text-neutral-900;
+  }
+
+  .option-unselected {
+    @apply bg-neutral-100 border-neutral-300 text-neutral-600 hover:bg-neutral-200;
+  }
+}
+
+@layer utilities {
+  .scale-102 {
+    transform: scale(1.02);
+  }
+
+  .scale-96 {
+    transform: scale(0.96);
+  }
+}
+
+/* 动画性能优化 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* P0 - LOGO文字镂空描边发光效果 */
+.logo-text {
+  font-family: 'SimHei', 'Microsoft YaHei', 'PingFang SC', 'Heiti SC', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: transparent;
+  -webkit-text-stroke: 2px #FFFFFF;
+  text-stroke: 2px #FFFFFF;
+  text-shadow:
+    0 0 10px #FFB800,
+    0 0 20px #FFB800,
+    0 0 30px #FFB800,
+    0 0 40px #F59E0B,
+    0 0 70px #F59E0B,
+    0 0 80px #F59E0B,
+    -2px -2px 0 #F59E0B,
+    2px -2px 0 #F59E0B,
+    -2px 2px 0 #F59E0B,
+    2px 2px 0 #F59E0B;
+  animation: logo-glow 2s ease-in-out infinite alternate;
+  will-change: text-shadow;
+}
+
+@keyframes logo-glow {
+  from {
+    text-shadow:
+      0 0 10px #FFB800,
+      0 0 20px #FFB800,
+      0 0 30px #FFB800,
+      0 0 40px #F59E0B,
+      0 0 70px #F59E0B,
+      -2px -2px 0 #F59E0B,
+      2px -2px 0 #F59E0B,
+      -2px 2px 0 #F59E0B,
+      2px 2px 0 #F59E0B;
+  }
+  to {
+    text-shadow:
+      0 0 20px #FFB800,
+      0 0 30px #FFB800,
+      0 0 40px #FFB800,
+      0 0 70px #F59E0B,
+      0 0 80px #F59E0B,
+      0 0 90px #F59E0B,
+      -2px -2px 0 #F59E0B,
+      2px -2px 0 #F59E0B,
+      -2px 2px 0 #F59E0B,
+      2px 2px 0 #F59E0B;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-text {
+    animation: none;
+  }
+}
+
+/* P1 - Tab标签渐变发光效果 - 已修改为白色粗体 */
+.tab-text {
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+/* Tab文字 - 未选中状态 */
+.tab-text-inactive {
+  color: #71717A;
+  font-weight: 600;
+}
+
+/* Tab文字 - 选中状态（白色粗体） */
+.tab-text-active {
+  color: #FFFFFF;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.tab-text:hover {
+  transform: scale(1.05);
+}
+
+/* Tab按钮基础样式 */
+.tab-button-base {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* 未选中Tab样式 */
+.tab-button-inactive {
+  background-color: #F5F5F4;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.08), 
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* 未选中Tab悬停 */
+.tab-button-inactive:hover {
+  background-color: #E7E5E4;
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 12px rgba(0, 0, 0, 0.12), 
+    0 3px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* 选中Tab样式 */
+.tab-button-active {
+  background-color: #F59E0B;
+  box-shadow: 
+    0 4px 8px rgba(245, 158, 11, 0.3), 
+    0 2px 4px rgba(245, 158, 11, 0.2),
+    0 0 0 1px rgba(245, 158, 11, 0.15);
+  transform: translateY(0);
+}
+
+/* 选中Tab悬停 */
+.tab-button-active:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 16px rgba(245, 158, 11, 0.4), 
+    0 4px 8px rgba(245, 158, 11, 0.3),
+    0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+/* P2 - 按钮文字立体阴影 */
+.button-text-enhanced {
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.btn-primary:hover:not(:disabled) .button-text-enhanced {
+  transform: translateY(-1px);
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* P3.1 - 功能标题装饰 */
+.section-title-decorated {
+  font-weight: 700;
+  color: #18181B;
+  padding-left: 12px;
+  border-left: 4px solid #3B82F6;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.08) 0%, transparent 100%);
+  padding-top: 4px;
+  padding-bottom: 4px;
+  display: block;
+}
+
+/* P3.2 - 描述文字渐变 */
+.description-text-gradient {
+  background: linear-gradient(135deg, #52525B 0%, #71717A 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ============================================
+   卡片/窗口立体效果系统
+   ============================================ */
+
+/* 基础卡片样式 - 轻度立体感 */
+.card-elevated {
+  background-color: #FAFAF9;
+  border: 2px solid #E7E5E4;
+  border-radius: 16px;
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-elevated:hover {
+  transform: translateY(-3px);
+  box-shadow: 
+    0 8px 16px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* 结果卡片样式 - 强立体感 */
+.card-result {
+  background-color: #FFFFFF;
+  border: 2px solid #E7E5E4;
+  border-radius: 16px;
+  box-shadow: 
+    0 4px 12px rgba(245, 158, 11, 0.12),
+    0 2px 6px rgba(59, 130, 246, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-result:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 12px 24px rgba(245, 158, 11, 0.18),
+    0 6px 12px rgba(59, 130, 246, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* 上传区域样式 - 交互式立体感 */
+.upload-area-elevated {
+  background-color: #FFFFFF;
+  border: 2px dashed #D4D4D8;
+  border-radius: 20px;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.upload-area-elevated:hover {
+  background-color: #FFFBEB;
+  border-color: #F59E0B;
+  border-style: dashed;
+  transform: translateY(-2px);
+  box-shadow: 
+    inset 0 2px 4px rgba(245, 158, 11, 0.08),
+    0 6px 12px rgba(245, 158, 11, 0.12),
+    0 3px 6px rgba(245, 158, 11, 0.08);
+}
+
+.upload-area-dragover {
+  background-color: #FEF3C7;
+  border-color: #F59E0B;
+  border-style: solid;
+  border-width: 3px;
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 
+    inset 0 4px 8px rgba(245, 158, 11, 0.15),
+    0 8px 20px rgba(245, 158, 11, 0.25),
+    0 4px 10px rgba(245, 158, 11, 0.15);
+}
+
+/* 输入框立体样式 */
+.input-elevated {
+  background-color: #FFFFFF;
+  border: 2px solid #E7E5E4;
+  border-radius: 12px;
+  box-shadow: 
+    inset 0 1px 2px rgba(0, 0, 0, 0.05),
+    0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-elevated:focus {
+  outline: none;
+  border-color: #3B82F6;
+  background-color: #FAFAF9;
+  box-shadow: 
+    inset 0 1px 2px rgba(59, 130, 246, 0.08),
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    0 4px 8px rgba(59, 130, 246, 0.12);
+  transform: translateY(-1px);
+}
+
+.input-elevated:hover {
+  border-color: #A1A1AA;
+  box-shadow: 
+    inset 0 1px 2px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* 结果淡入动画 */
+@keyframes result-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.result-fade-in {
+  animation: result-fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 图片加载骨架屏 */
+.image-skeleton {
+  background: linear-gradient(
+    90deg,
+    #F5F5F4 0%,
+    #E7E5E4 20%,
+    #F5F5F4 40%,
+    #F5F5F4 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 香蕉跑步动效 */
+.image-skeleton::before {
+  content: '🍌';
+  position: absolute;
+  font-size: 3rem;
+  top: 50%;
+  left: -120px;
+  transform: translateY(-50%);
+  animation: banana-run 2.5s linear infinite;
+  filter: drop-shadow(0 4px 8px rgba(245, 158, 11, 0.3));
+  z-index: 10;
+  will-change: transform;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes banana-run {
+  0% {
+    left: -120px;
+    transform: translateY(-50%) rotate(-10deg);
+  }
+  20% {
+    left: 20%;
+    transform: translateY(-55%) rotate(5deg);
+  }
+  50% {
+    left: 50%;
+    transform: translateY(-50%) rotate(0deg) scale(1.1);
+  }
+  80% {
+    left: 80%;
+    transform: translateY(-45%) rotate(-5deg);
+  }
+  100% {
+    left: calc(100% + 120px);
+    transform: translateY(-50%) rotate(10deg);
+  }
+}
