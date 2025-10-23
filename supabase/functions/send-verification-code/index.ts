@@ -1,3 +1,5 @@
+import { createHash, createHmac } from 'node:crypto';
+
 Deno.serve(async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -69,12 +71,16 @@ Deno.serve(async (req) => {
       throw new Error('保存验证码失败');
     }
 
-    // 使用 Resend API 发送邮件
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (!resendApiKey) {
-      throw new Error('RESEND_API_KEY 未配置');
+    // 使用腾讯云 SES API 发送邮件
+    const secretId = Deno.env.get('TENCENT_SECRET_ID');
+    const secretKey = Deno.env.get('TENCENT_SECRET_KEY');
+    const fromEmail = Deno.env.get('TENCENT_FROM_EMAIL') || 'noreply@jishi.asia';
+
+    if (!secretId || !secretKey) {
+      throw new Error('腾讯云 API 密钥未配置');
     }
 
+    // 构建邮件内容
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #2e7d32;">香蕉AI工作室</h2>
@@ -90,30 +96,18 @@ Deno.serve(async (req) => {
       </div>
     `;
 
-    const resendResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: '香蕉AI工作室 <onboarding@resend.dev>',
-        to: [email],
-        subject: '【香蕉AI工作室】邮箱验证码',
-        html: emailHtml,
-      }),
-    });
+    // 调用腾讯云 SES API
+    const result = await sendTencentCloudEmail(
+      secretId,
+      secretKey,
+      fromEmail,
+      email,
+      '【香蕉AI工作室】邮箱验证码',
+      emailHtml
+    );
 
-    if (!resendResponse.ok) {
-      const resendError = await resendResponse.text();
-      console.error('Resend API 错误:', resendError);
-      console.error('Resend API 状态码:', resendResponse.status);
-      throw new Error(`邮件发送失败: ${resendResponse.status} - ${resendError}`);
-    }
-
-    const resendData = await resendResponse.json();
-    console.log(`验证码已通过 Resend 发送到 ${email}，邮件ID: ${resendData.id}`);
-    console.log(`验证码将在 ${expiresAt} 过期`);
+    console.log(`验证码已通过腾讯云 SES 发送到 ${email}`);
+    console.log(`RequestId: ${result.RequestId}`);
 
     return new Response(
       JSON.stringify({
@@ -138,3 +132,103 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+/**
+ * 腾讯云 SES API 发送邮件
+ */
+async function sendTencentCloudEmail(
+  secretId: string,
+  secretKey: string,
+  from: string,
+  to: string,
+  subject: string,
+  htmlBody: string
+) {
+  const service = 'ses';
+  const host = 'ses.tencentcloudapi.com';
+  const region = 'ap-guangzhou';
+  const action = 'SendEmail';
+  const version = '2020-10-02';
+  const timestamp = Math.floor(Date.now() / 1000);
+  const date = new Date(timestamp * 1000).toISOString().split('T')[0];
+
+  // UTF-8 字符串转 base64
+  const utf8ToBase64 = (str: string): string => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    return btoa(String.fromCharCode(...data));
+  };
+
+  // 构建请求参数（腾讯云 SES 需要 base64 编码）
+  const textBody = `您的验证码是：${extractCodeFromHtml(htmlBody)}。验证码将在 5 分钟后失效，请尽快完成注册。`;
+  
+  const payload = {
+    FromEmailAddress: `香蕉AI工作室 <${from}>`,
+    Destination: [to],
+    Subject: subject,
+    Simple: {
+      Html: utf8ToBase64(htmlBody),
+      Text: utf8ToBase64(textBody),
+    },
+    ReplyToAddresses: from,
+  };
+
+  const payloadString = JSON.stringify(payload);
+
+  // 步骤 1：拼接规范请求串
+  const httpRequestMethod = 'POST';
+  const canonicalUri = '/';
+  const canonicalQueryString = '';
+  const canonicalHeaders = `content-type:application/json\nhost:${host}\nx-tc-action:${action.toLowerCase()}\n`;
+  const signedHeaders = 'content-type;host;x-tc-action';
+  const hashedRequestPayload = createHash('sha256').update(payloadString).digest('hex');
+  const canonicalRequest = `${httpRequestMethod}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${hashedRequestPayload}`;
+
+  // 步骤 2：拼接待签名字符串
+  const algorithm = 'TC3-HMAC-SHA256';
+  const hashedCanonicalRequest = createHash('sha256').update(canonicalRequest).digest('hex');
+  const credentialScope = `${date}/${service}/tc3_request`;
+  const stringToSign = `${algorithm}\n${timestamp}\n${credentialScope}\n${hashedCanonicalRequest}`;
+
+  // 步骤 3：计算签名
+  const secretDate = createHmac('sha256', `TC3${secretKey}`).update(date).digest();
+  const secretService = createHmac('sha256', secretDate).update(service).digest();
+  const secretSigning = createHmac('sha256', secretService).update('tc3_request').digest();
+  const signature = createHmac('sha256', secretSigning).update(stringToSign).digest('hex');
+
+  // 步骤 4：拼接 Authorization
+  const authorization = `${algorithm} Credential=${secretId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  // 发送请求
+  const response = await fetch(`https://${host}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Host': host,
+      'X-TC-Action': action,
+      'X-TC-Version': version,
+      'X-TC-Timestamp': timestamp.toString(),
+      'X-TC-Region': region,
+      'Authorization': authorization,
+    },
+    body: payloadString,
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || result.Response?.Error) {
+    const errorMsg = result.Response?.Error?.Message || '腾讯云 SES API 调用失败';
+    console.error('腾讯云 SES 错误:', result);
+    throw new Error(errorMsg);
+  }
+
+  return result.Response;
+}
+
+/**
+ * 从 HTML 中提取验证码
+ */
+function extractCodeFromHtml(html: string): string {
+  const match = html.match(/>\s*(\d{6})\s*</);  
+  return match ? match[1] : '';
+}
