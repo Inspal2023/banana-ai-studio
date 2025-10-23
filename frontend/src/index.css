@@ -766,3 +766,187 @@ aside {
     display: none;
   }
 }
+
+/* ============================================
+   认证页面样式 - 手绘风格
+   ============================================ */
+
+/* 认证页面背景 */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    rgba(232, 245, 233, 0.95),
+    rgba(200, 230, 201, 0.95)
+  ),
+  url('/images/auth-background.jpg') center/cover no-repeat;
+  background-attachment: fixed;
+  padding: 2rem;
+}
+
+/* 认证卡片 */
+.auth-card {
+  background: #fff;
+  border: 3px solid #5d4037;
+  border-radius: 12px;
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.1);
+  padding: 48px;
+  width: 100%;
+  max-width: 450px;
+  position: relative;
+  
+  /* 纸张纹理 */
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 239, 213, 0.1),
+      rgba(255, 239, 213, 0.1) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+}
+
+/* Logo样式 */
+.auth-logo {
+  width: 120px;
+  height: auto;
+  margin: 0 auto 24px;
+  display: block;
+  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* 输入框样式 */
+.auth-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #5d4037;
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: 'Microsoft YaHei', sans-serif;
+  transition: all 0.3s;
+  background: #fff;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-width: 3px;
+  border-color: #2c5f2d;
+  box-shadow: 3px 3px 0 rgba(44, 95, 45, 0.2);
+}
+
+.auth-input:hover {
+  border-color: #3e2723;
+}
+
+/* 主按钮（登录/注册） */
+.auth-button-primary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+  color: #fff;
+  border: 3px solid #1b5e20;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.1);
+  font-family: 'ZCOOL QingKe HuangYou', 'Microsoft YaHei', sans-serif;
+}
+
+.auth-button-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.15);
+}
+
+.auth-button-primary:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.auth-button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+/* 次要按钮（发送验证码） */
+.auth-button-secondary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #fdd835 0%, #f9a825 100%);
+  color: #5d4037;
+  border: 3px solid #f57f17;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.1);
+  font-family: 'ZCOOL QingKe HuangYou', 'Microsoft YaHei', sans-serif;
+}
+
+.auth-button-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.15);
+}
+
+.auth-button-secondary:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.auth-button-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+/* 链接按钮 */
+.text-link {
+  color: #2e7d32;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.text-link:hover {
+  color: #1b5e20;
+  border-bottom-color: #2e7d32;
+}
+
+/* 错误提示 */
+.error-message {
+  background: #fee2e2;
+  border: 2px solid #dc2626;
+  border-radius: 8px;
+  padding: 12px;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 3px 3px 0 rgba(220, 38, 38, 0.2);
+}
+
+/* 退出登录按钮 */
+.logout-button {
+  font-family: 'ZCOOL QingKe HuangYou', 'Microsoft YaHei', sans-serif;
+  font-weight: 700;
+  color: #dc2626;
+  border-color: #dc2626;
+  box-shadow: 2px 2px 0 rgba(220, 38, 38, 0.2);
+  transition: all 0.3s;
+}
+
+.logout-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 rgba(220, 38, 38, 0.3);
+}
+
+.logout-button:active {
+  transform: translateY(0);
+  box-shadow: 1px 1px 0 rgba(220, 38, 38, 0.2);
+}
+
