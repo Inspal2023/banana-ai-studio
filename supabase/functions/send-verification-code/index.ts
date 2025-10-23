@@ -69,9 +69,50 @@ Deno.serve(async (req) => {
       throw new Error('保存验证码失败');
     }
 
-    // 发送邮件（使用Supabase内置邮件服务）
-    // 注意：在生产环境中应该使用真实的邮件服务，这里仅作演示
-    console.log(`验证码发送到 ${email}: ${code}`);
+    // 使用 Resend API 发送邮件
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    if (!resendApiKey) {
+      throw new Error('RESEND_API_KEY 未配置');
+    }
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2e7d32;">香蕉AI工作室</h2>
+        <p>您好！</p>
+        <p>您的验证码是：</p>
+        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2e7d32; margin: 20px 0;">
+          ${code}
+        </div>
+        <p style="color: #666;">验证码将在 5 分钟后失效，请尽快完成注册。</p>
+        <p style="color: #999; font-size: 12px; margin-top: 40px;">如果这不是您的操作，请忽略此邮件。</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="color: #999; font-size: 12px; text-align: center;">© 香蕉AI工作室</p>
+      </div>
+    `;
+
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: '香蕉AI工作室 <onboarding@resend.dev>',
+        to: [email],
+        subject: '【香蕉AI工作室】邮箱验证码',
+        html: emailHtml,
+      }),
+    });
+
+    if (!resendResponse.ok) {
+      const resendError = await resendResponse.text();
+      console.error('Resend API 错误:', resendError);
+      console.error('Resend API 状态码:', resendResponse.status);
+      throw new Error(`邮件发送失败: ${resendResponse.status} - ${resendError}`);
+    }
+
+    const resendData = await resendResponse.json();
+    console.log(`验证码已通过 Resend 发送到 ${email}，邮件ID: ${resendData.id}`);
     console.log(`验证码将在 ${expiresAt} 过期`);
 
     return new Response(
