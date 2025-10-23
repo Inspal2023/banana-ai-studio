@@ -24,7 +24,21 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     try {
       await signIn(email, password)
     } catch (err: any) {
-      setError(err.message || '登录失败，请检查邮箱和密码')
+      // 将技术错误信息转换为友好提示
+      let errorMessage = '登录失败，请稍后重试'
+      
+      if (err.message) {
+        const msg = err.message.toLowerCase()
+        if (msg.includes('invalid login credentials') || msg.includes('invalid') || msg.includes('credentials')) {
+          errorMessage = '邮箱不存在或密码错误，请检查后重试'
+        } else if (msg.includes('email not confirmed')) {
+          errorMessage = '邮箱未验证，请先完成邮箱验证'
+        } else if (msg.includes('too many requests')) {
+          errorMessage = '登录尝试次数过多，请稍后再试'
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
