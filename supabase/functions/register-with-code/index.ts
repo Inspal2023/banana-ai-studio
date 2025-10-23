@@ -84,17 +84,18 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // 创建用户账号
-    const signUpResponse = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+    // 创建用户账号（使用 Admin API 自动确认邮箱）
+    const signUpResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
       method: 'POST',
       headers: {
         'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         email,
         password,
-        email_confirm: true, // 自动确认邮箱
+        email_confirm: true,
       }),
     });
 
