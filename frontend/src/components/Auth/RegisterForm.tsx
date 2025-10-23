@@ -15,6 +15,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
+  
+  // 输入框焦点状态
+  const [focusedField, setFocusedField] = useState<string | null>(null)
+  
+  // 密码强度验证状态
+  const [passwordValidation, setPasswordValidation] = useState({
+    hasLetter: false,
+    hasNumber: false,
+    isLongEnough: false,
+  })
 
   // 发送验证码
   const handleSendCode = async (e: React.FormEvent) => {
@@ -54,6 +64,15 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     }
   }
 
+  // 密码实时验证
+  const validatePassword = (pwd: string) => {
+    setPasswordValidation({
+      hasLetter: /[A-Za-z]/.test(pwd),
+      hasNumber: /\d/.test(pwd),
+      isLongEnough: pwd.length >= 8,
+    })
+  }
+
   // 完成注册
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,8 +84,8 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       return
     }
 
-    if (password.length < 8) {
-      setError('密码长度不能少于8位')
+    if (!passwordValidation.hasLetter || !passwordValidation.hasNumber || !passwordValidation.isLongEnough) {
+      setError('密码必须至少8位，且包含字母和数字')
       return
     }
 
@@ -83,10 +102,15 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         throw new Error(data.error.message)
       }
 
-      // 注册成功，设置session
+      // 注册成功，设置session并跳转到登录页
       if (data?.data?.session) {
         await supabase.auth.setSession(data.data.session)
       }
+      
+      // 注册成功后自动跳转到登录页
+      setTimeout(() => {
+        onSwitchToLogin()
+      }, 500)
     } catch (err: any) {
       setError(err.message || '注册失败')
     } finally {
@@ -117,12 +141,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               邮箱地址
             </label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+              {focusedField !== 'email' && (
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+              )}
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="auth-input pl-12"
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+                className={focusedField === 'email' ? 'auth-input' : 'auth-input pl-12'}
                 placeholder="请输入邮箱"
                 required
               />
@@ -174,12 +202,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             验证码（6位数字）
           </label>
           <div className="relative">
-            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            {focusedField !== 'code' && (
+              <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            )}
             <input
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="auth-input pl-12"
+              onFocus={() => setFocusedField('code')}
+              onBlur={() => setFocusedField(null)}
+              className={focusedField === 'code' ? 'auth-input' : 'auth-input pl-12'}
               placeholder="请输入验证码"
               maxLength={6}
               required
@@ -197,16 +229,36 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             设置密码
           </label>
           <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            {focusedField !== 'password' && (
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            )}
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="auth-input pl-12"
+              onChange={(e) => {
+                setPassword(e.target.value)
+                validatePassword(e.target.value)
+              }}
+              onFocus={() => setFocusedField('password')}
+              onBlur={() => setFocusedField(null)}
+              className={focusedField === 'password' ? 'auth-input' : 'auth-input pl-12'}
               placeholder="至少8位，包含字母和数字"
               required
             />
           </div>
+          {password && (
+            <div className="space-y-1 text-xs">
+              <div className={passwordValidation.isLongEnough ? 'text-green-600' : 'text-neutral-500'}>
+                {passwordValidation.isLongEnough ? '✓' : '○'} 至少8位字符
+              </div>
+              <div className={passwordValidation.hasLetter ? 'text-green-600' : 'text-neutral-500'}>
+                {passwordValidation.hasLetter ? '✓' : '○'} 包含字母
+              </div>
+              <div className={passwordValidation.hasNumber ? 'text-green-600' : 'text-neutral-500'}>
+                {passwordValidation.hasNumber ? '✓' : '○'} 包含数字
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -214,12 +266,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             确认密码
           </label>
           <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            {focusedField !== 'confirmPassword' && (
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            )}
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="auth-input pl-12"
+              onFocus={() => setFocusedField('confirmPassword')}
+              onBlur={() => setFocusedField(null)}
+              className={focusedField === 'confirmPassword' ? 'auth-input' : 'auth-input pl-12'}
               placeholder="再次输入密码"
               required
             />
