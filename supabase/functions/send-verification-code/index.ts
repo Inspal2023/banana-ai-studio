@@ -27,6 +27,27 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+    // 检查邮箱是否已注册
+    const checkUserResponse = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users`,
+      {
+        headers: {
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+
+    const usersData = await checkUserResponse.json();
+    const existingUser = usersData.users?.find((user: any) => user.email === email);
+    
+    if (existingUser) {
+      return new Response(
+        JSON.stringify({ error: { message: '该邮箱已注册，请直接登录' } }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 检查60秒内是否已发送验证码（防止滥用）
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/email_verification_codes?email=eq.${email}&created_at=gte.${new Date(Date.now() - 60000).toISOString()}&order=created_at.desc&limit=1`,
