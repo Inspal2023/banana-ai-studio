@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Mail, Lock, Hash } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 
+// Supabase 配置
+const SUPABASE_URL = 'https://wftvnobmkbewqjkzndln.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmdHZub2Jta2Jld3Fqa3puZGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTg3NjgsImV4cCI6MjA3NjAzNDc2OH0.113fWrUn1LHXfAoehqpkjcDfFDEXLHBkvM9XPpn7mE0'
+
 interface RegisterFormProps {
   onSwitchToLogin: () => void
 }
@@ -33,14 +37,25 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.functions.invoke('send-verification-code', {
-        body: { email }
-      })
+      // 使用 fetch 直接调用，以便完全控制错误处理
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/send-verification-code`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ email }),
+        }
+      )
 
-      if (error) throw error
+      const data = await response.json()
 
-      if (data?.error) {
-        throw new Error(data.error.message)
+      // 处理错误响应
+      if (!response.ok) {
+        throw new Error(data?.error?.message || data?.message || '发送验证码失败')
       }
 
       // 设置60秒倒计时
