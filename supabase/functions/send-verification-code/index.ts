@@ -71,39 +71,29 @@ Deno.serve(async (req) => {
       throw new Error('保存验证码失败');
     }
 
-    // 使用腾讯云 SES API 发送邮件
+    // 使用腾讯云 SES API 发送邮件（模板方式）
     const secretId = Deno.env.get('TENCENT_SECRET_ID');
     const secretKey = Deno.env.get('TENCENT_SECRET_KEY');
     const fromEmail = Deno.env.get('TENCENT_FROM_EMAIL') || 'noreply@jishi.asia';
+    const templateId = Deno.env.get('TENCENT_EMAIL_TEMPLATE_ID');
 
     if (!secretId || !secretKey) {
       throw new Error('腾讯云 API 密钥未配置');
     }
 
-    // 构建邮件内容
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #2e7d32;">香蕉AI工作室</h2>
-        <p>您好！</p>
-        <p>您的验证码是：</p>
-        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2e7d32; margin: 20px 0;">
-          ${code}
-        </div>
-        <p style="color: #666;">验证码将在 5 分钟后失效，请尽快完成注册。</p>
-        <p style="color: #999; font-size: 12px; margin-top: 40px;">如果这不是您的操作，请忽略此邮件。</p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #999; font-size: 12px; text-align: center;">© 香蕉AI工作室</p>
-      </div>
-    `;
+    if (!templateId) {
+      throw new Error('腾讯云邮件模板ID未配置');
+    }
 
-    // 调用腾讯云 SES API
-    const result = await sendTencentCloudEmail(
+    // 调用腾讯云 SES API（使用模板）
+    const result = await sendTencentCloudEmailWithTemplate(
       secretId,
       secretKey,
       fromEmail,
       email,
       '【香蕉AI工作室】邮箱验证码',
-      emailHtml
+      templateId,
+      { code }
     );
 
     console.log(`验证码已通过腾讯云 SES 发送到 ${email}`);
@@ -134,15 +124,16 @@ Deno.serve(async (req) => {
 });
 
 /**
- * 腾讯云 SES API 发送邮件
+ * 腾讯云 SES API 发送邮件（使用模板）
  */
-async function sendTencentCloudEmail(
+async function sendTencentCloudEmailWithTemplate(
   secretId: string,
   secretKey: string,
   from: string,
   to: string,
   subject: string,
-  htmlBody: string
+  templateId: string,
+  templateData: Record<string, string>
 ) {
   const service = 'ses';
   const host = 'ses.tencentcloudapi.com';
@@ -152,23 +143,14 @@ async function sendTencentCloudEmail(
   const timestamp = Math.floor(Date.now() / 1000);
   const date = new Date(timestamp * 1000).toISOString().split('T')[0];
 
-  // UTF-8 字符串转 base64
-  const utf8ToBase64 = (str: string): string => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
-    return btoa(String.fromCharCode(...data));
-  };
-
-  // 构建请求参数（腾讯云 SES 需要 base64 编码）
-  const textBody = `您的验证码是：${extractCodeFromHtml(htmlBody)}。验证码将在 5 分钟后失效，请尽快完成注册。`;
-  
+  // 构建请求参数（使用模板）
   const payload = {
     FromEmailAddress: `香蕉AI工作室 <${from}>`,
     Destination: [to],
     Subject: subject,
-    Simple: {
-      Html: utf8ToBase64(htmlBody),
-      Text: utf8ToBase64(textBody),
+    Template: {
+      TemplateID: parseInt(templateId),
+      TemplateData: JSON.stringify(templateData),
     },
     ReplyToAddresses: from,
   };
@@ -225,10 +207,4 @@ async function sendTencentCloudEmail(
   return result.Response;
 }
 
-/**
- * 从 HTML 中提取验证码
- */
-function extractCodeFromHtml(html: string): string {
-  const match = html.match(/>\s*(\d{6})\s*</);  
-  return match ? match[1] : '';
-}
+
