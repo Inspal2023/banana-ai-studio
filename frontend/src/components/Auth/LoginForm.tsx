@@ -12,6 +12,9 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  
+  // 输入框焦点状态
+  const [focusedField, setFocusedField] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,12 +56,16 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             邮箱地址
           </label>
           <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            {focusedField !== 'email' && (
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            )}
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="auth-input pl-12"
+              onFocus={() => setFocusedField('email')}
+              onBlur={() => setFocusedField(null)}
+              className={focusedField === 'email' ? 'auth-input' : 'auth-input pl-12'}
               placeholder="请输入邮箱"
               required
             />
@@ -71,12 +78,16 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             密码
           </label>
           <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            {focusedField !== 'password' && (
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            )}
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="auth-input pl-12"
+              onFocus={() => setFocusedField('password')}
+              onBlur={() => setFocusedField(null)}
+              className={focusedField === 'password' ? 'auth-input' : 'auth-input pl-12'}
               placeholder="请输入密码"
               required
             />
