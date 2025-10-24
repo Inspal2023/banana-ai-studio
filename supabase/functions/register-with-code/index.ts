@@ -300,4 +300,10 @@ Deno.serve(async (req) => {
     const safeErrorMessage = errorMessage.includes('API') || errorMessage.includes('密钥') || errorMessage.includes('配置') 
       ? '服务器配置错误，请联系管理员' 
       : errorMessage;
+
+    return new Response(
+      JSON.stringify({ error: { message: safeErrorMessage } }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 });
