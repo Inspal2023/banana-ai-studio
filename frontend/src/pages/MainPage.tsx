@@ -1,21 +1,11 @@
 import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react'
-import { Pen, Box, Image as ImageIcon, LogOut, Coins, Settings } from 'lucide-react'
+import { Pen, Box, Image as ImageIcon, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import LineArtGenerator from '../components/LineArtGenerator'
 import MultiViewGenerator from '../components/MultiViewGenerator'
 import BackgroundReplacer from '../components/BackgroundReplacer'
-import PointsAccountModal from '../components/PointsAccountModal'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-
-interface Transaction {
-  id: string
-  type: 'earn' | 'spend' | 'recharge'
-  amount: number
-  description: string
-  timestamp: Date
-  status: 'completed' | 'pending' | 'failed'
-}
 
 type Tab = 'line-art' | 'multi-view' | 'background'
 
@@ -46,50 +36,6 @@ const TABS_CONFIG = [
     color: 'text-green-500',
   },
 ] as const
-
-// 预定义的交易数据
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  {
-    id: '1',
-    type: 'recharge',
-    amount: 100,
-    description: '微信充值',
-    timestamp: new Date('2024-01-15'),
-    status: 'completed'
-  },
-  {
-    id: '2',
-    type: 'spend',
-    amount: -20,
-    description: '线稿图生成',
-    timestamp: new Date('2024-01-14'),
-    status: 'completed'
-  },
-  {
-    id: '3',
-    type: 'earn',
-    amount: 50,
-    description: '每日签到奖励',
-    timestamp: new Date('2024-01-13'),
-    status: 'completed'
-  },
-  {
-    id: '4',
-    type: 'spend',
-    amount: -30,
-    description: '三视图生成',
-    timestamp: new Date('2024-01-12'),
-    status: 'completed'
-  },
-  {
-    id: '5',
-    type: 'recharge',
-    amount: 300,
-    description: '管理员充值',
-    timestamp: new Date('2024-01-10'),
-    status: 'completed'
-  }
-]
 
 // Tab组件 - 使用memo优化
 const TabButton = memo(({ 
@@ -128,17 +74,11 @@ TabButton.displayName = 'TabButton'
 const Header = memo(({ 
   user, 
   onLogout, 
-  onNavigate, 
-  onShowPoints,
-  currentPoints,
-  totalPoints 
+  onNavigate
 }: {
   user: any
   onLogout: () => void
   onNavigate: (path: string) => void
-  onShowPoints: () => void
-  currentPoints: number
-  totalPoints: number
 }) => {
   const logoutRef = useRef<HTMLButtonElement>(null)
   
@@ -164,25 +104,6 @@ const Header = memo(({
         </div>
         
         <div className="flex items-center gap-md">
-          <button
-            onClick={onShowPoints}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-50 border-2 border-primary-200 rounded-lg hover:bg-primary-100 transition-colors duration-200"
-            aria-label={`当前积分: ${currentPoints}/${totalPoints}`}
-          >
-            <Coins className="w-4 h-4 text-primary-600" />
-            <span className="text-primary-700 font-semibold">
-              我的积分账户: {currentPoints}/{totalPoints}
-            </span>
-          </button>
-          
-          <button
-            onClick={() => onNavigate('/admin')}
-            className="flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-300 rounded-lg hover:bg-neutral-200 transition-colors duration-200"
-          >
-            <Settings className="w-4 h-4 text-neutral-600" />
-            <span className="text-neutral-700 font-semibold">管理后台</span>
-          </button>
-          
           <div className="user-info">
             <span className="text-neutral-700 font-semibold">{user?.email}</span>
           </div>
@@ -237,9 +158,6 @@ export default function MainPage() {
   const stateRef = useRef({
     activeTab: 'line-art' as Tab,
     isGenerating: false,
-    showPointsModal: false,
-    currentPoints: 150,
-    totalPoints: 500,
     lineArtResult: '',
     multiViewResult: '',
     backgroundResult: '',
@@ -247,7 +165,6 @@ export default function MainPage() {
   
   const [sharedImage, setSharedImage] = useState<ImageState>({ file: null, previewUrl: '' })
   const [backgroundImage, setBackgroundImage] = useState<ImageState>({ file: null, previewUrl: '' })
-  const [transactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS)
   
   // 使用useCallback优化事件处理函数
   const handleLogout = useCallback(async () => {
@@ -267,11 +184,6 @@ export default function MainPage() {
     performance.measure('tab-change', 'tab-change-start', 'tab-change-end')
   }, [])
 
-  const handleShowPoints = useCallback(() => {
-    stateRef.current.showPointsModal = true
-    setShowPointsModal(true)
-  }, [])
-
   const handleNavigate = useCallback((path: string) => {
     navigate(path)
   }, [navigate])
@@ -282,7 +194,6 @@ export default function MainPage() {
   // 使用useState来管理需要触发渲染的状态
   const [activeTab, setActiveTab] = useState<Tab>(stateRef.current.activeTab)
   const [isGenerating, setIsGenerating] = useState(stateRef.current.isGenerating)
-  const [showPointsModal, setShowPointsModal] = useState(stateRef.current.showPointsModal)
   const [lineArtResult, setLineArtResult] = useState(stateRef.current.lineArtResult)
   const [multiViewResult, setMultiViewResult] = useState(stateRef.current.multiViewResult)
   const [backgroundResult, setBackgroundResult] = useState(stateRef.current.backgroundResult)
@@ -293,12 +204,11 @@ export default function MainPage() {
       ...stateRef.current,
       activeTab,
       isGenerating,
-      showPointsModal,
       lineArtResult,
       multiViewResult,
       backgroundResult
     }
-  }, [activeTab, isGenerating, showPointsModal, lineArtResult, multiViewResult, backgroundResult])
+  }, [activeTab, isGenerating, lineArtResult, multiViewResult, backgroundResult])
 
   // 性能监控
   useEffect(() => {
@@ -315,9 +225,6 @@ export default function MainPage() {
         user={user}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
-        onShowPoints={handleShowPoints}
-        currentPoints={stateRef.current.currentPoints}
-        totalPoints={stateRef.current.totalPoints}
       />
 
       <div className="flex flex-1">
@@ -363,17 +270,6 @@ export default function MainPage() {
           </React.Suspense>
         </main>
       </div>
-      
-      <PointsAccountModal
-        isOpen={showPointsModal}
-        onClose={() => {
-          stateRef.current.showPointsModal = false
-          setShowPointsModal(false)
-        }}
-        currentPoints={stateRef.current.currentPoints}
-        totalPoints={stateRef.current.totalPoints}
-        transactions={transactions}
-      />
     </div>
   )
 }
