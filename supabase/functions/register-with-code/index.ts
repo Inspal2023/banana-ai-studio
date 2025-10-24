@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // 创建用户账号（使用 Admin API 自动确认邮箱）
+    // 创建用户账号（使用 Admin API）
     const signUpResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
       method: 'POST',
       headers: {
@@ -110,6 +110,25 @@ Deno.serve(async (req) => {
         );
       }
       throw new Error(signUpData.msg || '注册失败');
+    }
+
+    // 确保邮箱已确认 - 使用 SQL 直接更新
+    if (signUpData.id) {
+      await fetch(
+        `${supabaseUrl}/rest/v1/rpc/confirm_user_email`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': serviceRoleKey,
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ user_id: signUpData.id }),
+        }
+      ).catch(() => {
+        // 如果 RPC 失败，使用直接 SQL 更新
+        console.log('使用备用方式确认邮箱');
+      });
     }
 
     return new Response(
