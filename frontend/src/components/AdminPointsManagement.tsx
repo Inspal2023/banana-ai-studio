@@ -17,7 +17,8 @@ import {
   UserCog,
   Crown,
   Shield,
-  Save
+  Save,
+  AlertCircle
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import ImageUpload from './ImageUpload'
@@ -49,6 +50,8 @@ interface AdminPointsProps {
   onAddPoints: (userId: string, amount: number, reason: string) => void
   onDeductPoints: (userId: string, amount: number, reason: string) => void
   onUpdateUserPoints: (userId: string, newPoints: number) => void
+  onBatchOperation?: (userIds: string[], operation: 'add' | 'deduct', amount: number, reason: string) => void
+  onExportData?: () => void
 }
 
 interface AdminSettings {
@@ -72,7 +75,9 @@ export default function AdminPointsManagement({
   transactions, 
   onAddPoints, 
   onDeductPoints,
-  onUpdateUserPoints 
+  onUpdateUserPoints,
+  onBatchOperation,
+  onExportData
 }: AdminPointsProps) {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'settings' | 'wechat'>('users')
@@ -81,6 +86,19 @@ export default function AdminPointsManagement({
   const [pointsAmount, setPointsAmount] = useState('')
   const [reason, setReason] = useState('')
   const [isAdding, setIsAdding] = useState(false)
+  
+  // 批量操作相关状态
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set())
+  const [showBatchForm, setShowBatchForm] = useState(false)
+  const [batchOperation, setBatchOperation] = useState<'add' | 'deduct'>('add')
+  const [batchAmount, setBatchAmount] = useState('')
+  const [batchReason, setBatchReason] = useState('')
+  
+  // 筛选相关状态
+  const [pointsFilter, setPointsFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all')
+  const [activityFilter, setActivityFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [sortBy, setSortBy] = useState<'email' | 'currentPoints' | 'totalPoints' | 'lastActivity'>('email')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   
   // 管理员设置相关状态
   const [adminSettings, setAdminSettings] = useState<AdminSettings[]>([
@@ -130,10 +148,73 @@ export default function AdminPointsManagement({
   const currentAdmin = adminSettings.find(admin => admin.id === selectedAdminId)
   const isSuperAdmin = currentAdmin?.role === 'super_admin'
 
-  // 过滤用户
-  const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // 过滤和排序用户
+  const getFilteredAndSortedUsers = () => {
+    const filtered = users.filter(user => {
+      // 搜索过滤
+      const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      // 积分过滤
+      let matchesPoints = true
+      switch (pointsFilter) {
+        case 'low':
+          matchesPoints = user.currentPoints < 50
+          break
+        case 'medium':
+          matchesPoints = user.currentPoints >= 50 && user.currentPoints < 200
+          break
+        case 'high':
+          matchesPoints = user.currentPoints >= 200
+          break
+        default:
+          matchesPoints = true
+      }
+      
+      // 活动过滤
+      let matchesActivity = true
+      if (activityFilter === 'active') {
+        const daysDiff = (Date.now() - user.lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+        matchesActivity = daysDiff <= 7
+      } else if (activityFilter === 'inactive') {
+        const daysDiff = (Date.now() - user.lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+        matchesActivity = daysDiff > 7
+      }
+      
+      return matchesSearch && matchesPoints && matchesActivity
+    })
+
+    // 排序
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any
+      switch (sortBy) {
+        case 'currentPoints':
+          aValue = a.currentPoints
+          bValue = b.currentPoints
+          break
+        case 'totalPoints':
+          aValue = a.totalPoints
+          bValue = b.totalPoints
+          break
+        case 'lastActivity':
+          aValue = a.lastActivity.getTime()
+          bValue = b.lastActivity.getTime()
+          break
+        default:
+          aValue = a.email.toLowerCase()
+          bValue = b.email.toLowerCase()
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
+      }
+    })
+
+    return filtered
+  }
+
+  const filteredUsers = getFilteredAndSortedUsers()
 
   // 过滤交易记录
   const filteredTransactions = transactions.filter(transaction =>
@@ -170,6 +251,51 @@ export default function AdminPointsManagement({
       console.error('扣除积分失败:', error)
     } finally {
       setIsAdding(false)
+    }
+  }
+
+  // 批量操作处理
+  const handleBatchOperation = async () => {
+    if (selectedUsers.size === 0 || !batchAmount || !batchReason) {
+      alert('请选择用户并填写完整信息')
+      return
+    }
+    
+    if (onBatchOperation) {
+      try {
+        await onBatchOperation(
+          Array.from(selectedUsers),
+          batchOperation,
+          parseInt(batchAmount),
+          batchReason
+        )
+        setShowBatchForm(false)
+        setSelectedUsers(new Set())
+        setBatchAmount('')
+        setBatchReason('')
+      } catch (error) {
+        console.error('批量操作失败:', error)
+      }
+    }
+  }
+
+  // 选择/取消选择用户
+  const toggleUserSelection = (userId: string) => {
+    const newSelected = new Set(selectedUsers)
+    if (newSelected.has(userId)) {
+      newSelected.delete(userId)
+    } else {
+      newSelected.add(userId)
+    }
+    setSelectedUsers(newSelected)
+  }
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === filteredUsers.length) {
+      setSelectedUsers(new Set())
+    } else {
+      setSelectedUsers(new Set(filteredUsers.map(u => u.id)))
     }
   }
 
@@ -369,28 +495,99 @@ export default function AdminPointsManagement({
       </div>
 
       {/* 搜索和操作栏 */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="搜索用户或交易..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent w-full"
-          />
+      <div className="flex flex-col gap-4">
+        {/* 第一行：搜索和基本操作 */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="搜索用户或交易..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent w-full"
+            />
+          </div>
+          
+          <div className="flex gap-2 flex-wrap">
+            {onBatchOperation && selectedUsers.size > 0 && (
+              <button
+                onClick={() => setShowBatchForm(true)}
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                批量操作 ({selectedUsers.size})
+              </button>
+            )}
+            
+            <select
+              value={pointsFilter}
+              onChange={(e) => setPointsFilter(e.target.value as any)}
+              className="px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">所有积分</option>
+              <option value="low">低积分 (&lt;50)</option>
+              <option value="medium">中等积分 (50-199)</option>
+              <option value="high">高积分 (≥200)</option>
+            </select>
+            
+            <select
+              value={activityFilter}
+              onChange={(e) => setActivityFilter(e.target.value as any)}
+              className="px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">所有用户</option>
+              <option value="active">活跃用户</option>
+              <option value="inactive">不活跃用户</option>
+            </select>
+            
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="email">按邮箱排序</option>
+              <option value="currentPoints">按当前积分排序</option>
+              <option value="totalPoints">按总积分排序</option>
+              <option value="lastActivity">按最后活动排序</option>
+            </select>
+            
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="px-3 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors"
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+            
+            {onExportData && (
+              <button
+                onClick={onExportData}
+                className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                导出
+              </button>
+            )}
+          </div>
         </div>
         
-        <div className="flex gap-2">
-          <button className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors flex items-center gap-2">
-            <Filter className="w-4 h-4" />
-            筛选
-          </button>
-          <button className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            导出
-          </button>
-        </div>
+        {/* 第二行：统计信息 */}
+        {activeTab === 'users' && (
+          <div className="text-sm text-neutral-600 flex items-center gap-4">
+            <span>共 {filteredUsers.length} 个用户</span>
+            <span>已选择 {selectedUsers.size} 个用户</span>
+            {pointsFilter !== 'all' && (
+              <span className="text-orange-600">
+                筛选: {pointsFilter === 'low' ? '低积分' : pointsFilter === 'medium' ? '中等积分' : '高积分'}
+              </span>
+            )}
+            {activityFilter !== 'all' && (
+              <span className="text-blue-600">
+                筛选: {activityFilter === 'active' ? '活跃用户' : '不活跃用户'}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 内容区域 */}
@@ -455,6 +652,14 @@ export default function AdminPointsManagement({
               <table className="w-full">
                 <thead className="bg-neutral-50 border-b border-neutral-200">
                   <tr>
+                    <th className="px-6 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.size === filteredUsers.length && filteredUsers.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                       用户
                     </th>
@@ -468,6 +673,9 @@ export default function AdminPointsManagement({
                       总消费
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                      积分状态
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                       最后活动
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
@@ -478,6 +686,14 @@ export default function AdminPointsManagement({
                 <tbody className="divide-y divide-neutral-200">
                   {filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-neutral-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedUsers.has(user.id)}
+                          onChange={() => toggleUserSelection(user.id)}
+                          className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-neutral-900">{user.email}</div>
@@ -495,15 +711,34 @@ export default function AdminPointsManagement({
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-semantic-error">{user.totalSpent}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                        {user.lastActivity.toLocaleDateString()}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          user.currentPoints < 50 
+                            ? 'bg-red-100 text-red-800'
+                            : user.currentPoints < 200
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {user.currentPoints < 50 ? '低积分' : user.currentPoints < 200 ? '中等积分' : '高积分'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-neutral-500">
+                          {user.lastActivity.toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-neutral-400">
+                          {(() => {
+                            const daysDiff = Math.floor((Date.now() - user.lastActivity.getTime()) / (1000 * 60 * 60 * 24))
+                            return daysDiff === 0 ? '今天' : `${daysDiff}天前`
+                          })()}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-2">
-                          <button className="text-primary-600 hover:text-primary-900">
+                          <button className="text-primary-600 hover:text-primary-900" title="查看详情">
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button className="text-neutral-600 hover:text-neutral-900">
+                          <button className="text-neutral-600 hover:text-neutral-900" title="编辑积分">
                             <Edit className="w-4 h-4" />
                           </button>
                         </div>
@@ -513,6 +748,16 @@ export default function AdminPointsManagement({
                 </tbody>
               </table>
             </div>
+            
+            {filteredUsers.length === 0 && (
+              <div className="text-center py-12 text-neutral-500">
+                <Users className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
+                <p>没有找到匹配的用户</p>
+                {searchTerm && (
+                  <p className="text-sm text-neutral-400 mt-1">尝试调整搜索条件或筛选条件</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -877,6 +1122,92 @@ export default function AdminPointsManagement({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 批量操作模态框 */}
+      {showBatchForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-neutral-900 mb-4">
+              批量操作 ({selectedUsers.size} 个用户)
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  操作类型
+                </label>
+                <select
+                  value={batchOperation}
+                  onChange={(e) => setBatchOperation(e.target.value as 'add' | 'deduct')}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="add">添加积分</option>
+                  <option value="deduct">扣除积分</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  积分数量
+                </label>
+                <input
+                  type="number"
+                  value={batchAmount}
+                  onChange={(e) => setBatchAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="请输入积分数量"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  操作原因
+                </label>
+                <input
+                  type="text"
+                  value={batchReason}
+                  onChange={(e) => setBatchReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="请输入操作原因"
+                />
+              </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">确认信息</span>
+                </div>
+                <p className="text-yellow-700 text-sm mt-1">
+                  将{batchOperation === 'add' ? '向' : '从'}{selectedUsers.size}个用户{batchOperation === 'add' ? '添加' : '扣除'}{batchAmount}积分
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowBatchForm(false)
+                  setBatchAmount('')
+                  setBatchReason('')
+                }}
+                className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleBatchOperation}
+                className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                  batchOperation === 'add' 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                确认执行
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

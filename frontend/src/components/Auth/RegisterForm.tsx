@@ -1,10 +1,27 @@
 import { useState } from 'react'
 import { Mail, Lock, Hash } from 'lucide-react'
-import { supabase } from '../../lib/supabaseClient'
+import { supabase } from '../../lib/supabase'
+import { 
+  validateEmail, 
+  validateInput, 
+  validateVerificationCode, 
+  validatePassword,
+  sanitizeInput,
+  SecurityLogger 
+} from '../../lib/validation'
 
-// Supabase 配置
-const SUPABASE_URL = 'https://wftvnobmkbewqjkzndln.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmdHZub2Jta2Jld3Fqa3puZGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTg3NjgsImV4cCI6MjA3NjAzNDc2OH0.113fWrUn1LHXfAoehqpkjcDfFDEXLHBkvM9XPpn7mE0'
+// 从环境变量获取 Supabase 配置
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+// 验证必要的环境变量
+if (!SUPABASE_URL) {
+  console.error('Missing VITE_SUPABASE_URL environment variable')
+}
+
+if (!SUPABASE_ANON_KEY) {
+  console.error('Missing VITE_SUPABASE_ANON_KEY environment variable')
+}
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void
@@ -19,6 +36,12 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{
+    email?: string;
+    code?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({})
   
   // 输入框焦点状态
   const [focusedField, setFocusedField] = useState<string | null>(null)
@@ -30,14 +53,100 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     isLongEnough: false,
   })
 
+  // 实时验证邮箱
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setEmail(value)
+    
+    if (value.trim() !== '') {
+      const emailResult = validateEmail(value)
+      setValidationErrors(prev => ({
+        ...prev,
+        email: emailResult.isValid ? undefined : emailResult.errors[0]
+      }))
+    } else {
+      setValidationErrors(prev => ({ ...prev, email: undefined }))
+    }
+  }
+
+  // 实时验证验证码
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6)
+    setCode(value)
+    
+    if (value.trim() !== '') {
+      const codeResult = validateVerificationCode(value)
+      setValidationErrors(prev => ({
+        ...prev,
+        code: codeResult.isValid ? undefined : codeResult.errors[0]
+      }))
+    } else {
+      setValidationErrors(prev => ({ ...prev, code: undefined }))
+    }
+  }
+
+  // 实时验证密码
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setPassword(value)
+    
+    // 密码强度验证
+    const passwordValidation = {
+      hasLetter: /[A-Za-z]/.test(value),
+      hasNumber: /\d/.test(value),
+      isLongEnough: value.length >= 8,
+    }
+    setPasswordValidation(passwordValidation)
+    
+    if (value.trim() !== '') {
+      const passwordResult = validatePassword(value)
+      setValidationErrors(prev => ({
+        ...prev,
+        password: passwordResult.isValid ? undefined : (passwordResult.errors[0] || '密码格式不正确')
+      }))
+    } else {
+      setValidationErrors(prev => ({ ...prev, password: undefined }))
+    }
+  }
+
+  // 实时验证确认密码
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setConfirmPassword(value)
+    
+    if (value.trim() !== '') {
+      if (password !== value) {
+        setValidationErrors(prev => ({
+          ...prev,
+          confirmPassword: '两次密码输入不一致'
+        }))
+      } else {
+        setValidationErrors(prev => ({ ...prev, confirmPassword: undefined }))
+      }
+    } else {
+      setValidationErrors(prev => ({ ...prev, confirmPassword: undefined }))
+    }
+  }
+
   // 发送验证码
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // 验证邮箱格式
+    const emailResult = validateEmail(email)
+    if (!emailResult.isValid) {
+      setValidationErrors({ email: emailResult.errors[0] })
+      SecurityLogger.log('WARNING', '注册邮箱验证失败', { email, errors: emailResult.errors })
+      return
+    }
+
     setLoading(true)
 
     try {
-      // 使用 fetch 直接调用，以便完全控制错误处理
+      // 使用清理后的邮箱
+      const sanitizedEmail = emailResult.sanitized
+      
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/send-verification-code`,
         {
@@ -47,7 +156,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'apikey': SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: sanitizedEmail }),
         }
       )
 
@@ -55,7 +164,9 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
       // 处理错误响应
       if (!response.ok) {
-        throw new Error(data?.error?.message || data?.message || '发送验证码失败')
+        const errorMsg = data?.error?.message || data?.message || '发送验证码失败'
+        SecurityLogger.log('WARNING', '发送验证码失败', { email: sanitizedEmail, error: errorMsg })
+        throw new Error(errorMsg)
       }
 
       // 设置60秒倒计时
@@ -72,43 +183,68 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
       // 进入第二步
       setStep(2)
+      SecurityLogger.log('INFO', '验证码发送成功', { email: sanitizedEmail })
     } catch (err: any) {
-      setError(err.message || '发送验证码失败')
+      const errorMsg = err.message || '发送验证码失败'
+      setError(errorMsg)
+      SecurityLogger.log('ERROR', '发送验证码异常', { email, error: errorMsg })
     } finally {
       setLoading(false)
     }
   }
 
-  // 密码实时验证
-  const validatePassword = (pwd: string) => {
-    setPasswordValidation({
-      hasLetter: /[A-Za-z]/.test(pwd),
-      hasNumber: /\d/.test(pwd),
-      isLongEnough: pwd.length >= 8,
-    })
-  }
+
 
   // 完成注册
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    // 验证密码
-    if (password !== confirmPassword) {
-      setError('两次密码输入不一致')
-      return
+    // 综合验证
+    const emailResult = validateEmail(email)
+    const codeResult = validateVerificationCode(code)
+    const passwordResult = validatePassword(password)
+    const passwordValidation = {
+      hasLetter: /[A-Za-z]/.test(password),
+      hasNumber: /\d/.test(password),
+      isLongEnough: password.length >= 8,
     }
 
-    if (!passwordValidation.hasLetter || !passwordValidation.hasNumber || !passwordValidation.isLongEnough) {
-      setError('密码必须至少8位，且包含字母和数字')
+    const validationErrors: { email?: string; code?: string; password?: string; confirmPassword?: string } = {}
+
+    if (!emailResult.isValid) {
+      validationErrors.email = emailResult.errors[0]
+    }
+
+    if (!codeResult.isValid) {
+      validationErrors.code = codeResult.errors[0]
+    }
+
+    if (!passwordResult.isValid) {
+      validationErrors.password = passwordResult.errors[0] || '密码必须至少8位，且包含字母和数字'
+    }
+
+    if (password !== confirmPassword) {
+      validationErrors.confirmPassword = '两次密码输入不一致'
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setValidationErrors(validationErrors)
+      setError('请检查输入格式')
+      SecurityLogger.log('WARNING', '注册表单验证失败', { email, validationErrors })
       return
     }
 
     setLoading(true)
 
     try {
+      // 使用清理后的输入
+      const sanitizedEmail = emailResult.sanitized
+      const sanitizedCode = codeResult.sanitized
+      const sanitizedPassword = sanitizeInput(password) // 只清理，不修改密码内容
+
       const { data, error } = await supabase.functions.invoke('register-with-code', {
-        body: { email, code, password }
+        body: { email: sanitizedEmail, code: sanitizedCode, password: sanitizedPassword }
       })
 
       if (error) throw error
@@ -122,12 +258,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         await supabase.auth.setSession(data.data.session)
       }
       
+      SecurityLogger.log('INFO', '用户注册成功', { email: sanitizedEmail })
+      
       // 注册成功后自动跳转到登录页
       setTimeout(() => {
         onSwitchToLogin()
       }, 500)
     } catch (err: any) {
-      setError(err.message || '注册失败')
+      const errorMsg = err.message || '注册失败'
+      setError(errorMsg)
+      SecurityLogger.log('ERROR', '用户注册失败', { email, error: errorMsg })
     } finally {
       setLoading(false)
     }
@@ -162,13 +302,18 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
                 onFocus={() => setFocusedField('email')}
                 onBlur={() => setFocusedField(null)}
-                className={focusedField === 'email' ? 'auth-input' : 'auth-input pl-12'}
+                className={`auth-input ${focusedField === 'email' ? 'auth-input pl-12' : 'auth-input pl-12'} ${
+                  validationErrors.email ? 'border-red-500' : ''
+                }`}
                 placeholder="请输入邮箱"
                 required
               />
+              {validationErrors.email && (
+                <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
+              )}
             </div>
           </div>
 
@@ -223,14 +368,19 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={handleCodeChange}
               onFocus={() => setFocusedField('code')}
               onBlur={() => setFocusedField(null)}
-              className={focusedField === 'code' ? 'auth-input' : 'auth-input pl-12'}
+              className={`auth-input ${focusedField === 'code' ? 'auth-input pl-12' : 'auth-input pl-12'} ${
+                validationErrors.code ? 'border-red-500' : ''
+              }`}
               placeholder="请输入验证码"
               maxLength={6}
               required
             />
+            {validationErrors.code && (
+              <p className="text-red-500 text-xs mt-1">{validationErrors.code}</p>
+            )}
           </div>
           {countdown > 0 && (
             <p className="text-sm text-neutral-500 mt-2">
@@ -250,16 +400,18 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             <input
               type="password"
               value={password}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                validatePassword(e.target.value)
-              }}
+              onChange={handlePasswordChange}
               onFocus={() => setFocusedField('password')}
               onBlur={() => setFocusedField(null)}
-              className={focusedField === 'password' ? 'auth-input' : 'auth-input pl-12'}
+              className={`auth-input ${focusedField === 'password' ? 'auth-input pl-12' : 'auth-input pl-12'} ${
+                validationErrors.password ? 'border-red-500' : ''
+              }`}
               placeholder="至少8位，包含字母和数字"
               required
             />
+            {validationErrors.password && (
+              <p className="text-red-500 text-xs mt-1">{validationErrors.password}</p>
+            )}
           </div>
           {password && (
             <div className="space-y-1 text-xs">
@@ -287,13 +439,18 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={handleConfirmPasswordChange}
               onFocus={() => setFocusedField('confirmPassword')}
               onBlur={() => setFocusedField(null)}
-              className={focusedField === 'confirmPassword' ? 'auth-input' : 'auth-input pl-12'}
+              className={`auth-input ${focusedField === 'confirmPassword' ? 'auth-input pl-12' : 'auth-input pl-12'} ${
+                validationErrors.confirmPassword ? 'border-red-500' : ''
+              }`}
               placeholder="再次输入密码"
               required
             />
+            {validationErrors.confirmPassword && (
+              <p className="text-red-500 text-xs mt-1">{validationErrors.confirmPassword}</p>
+            )}
           </div>
         </div>
 

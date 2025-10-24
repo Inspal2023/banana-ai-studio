@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react'
 import { Pen, Box, Image as ImageIcon, LogOut, Coins, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -6,6 +6,7 @@ import LineArtGenerator from '../components/LineArtGenerator'
 import MultiViewGenerator from '../components/MultiViewGenerator'
 import BackgroundReplacer from '../components/BackgroundReplacer'
 import PointsAccountModal from '../components/PointsAccountModal'
+import { LoadingSpinner } from '../components/LoadingSpinner'
 
 interface Transaction {
   id: string
@@ -24,214 +25,353 @@ interface ImageState {
   previewUrl: string
 }
 
+// 缓存的Tab配置
+const TABS_CONFIG = [
+  {
+    id: 'line-art' as Tab,
+    label: '线稿图',
+    icon: Pen,
+    color: 'text-secondary-500',
+  },
+  {
+    id: 'multi-view' as Tab,
+    label: '三视图',
+    icon: Box,
+    color: 'text-purple-500',
+  },
+  {
+    id: 'background' as Tab,
+    label: '换场景',
+    icon: ImageIcon,
+    color: 'text-green-500',
+  },
+] as const
+
+// 预定义的交易数据
+const INITIAL_TRANSACTIONS: Transaction[] = [
+  {
+    id: '1',
+    type: 'recharge',
+    amount: 100,
+    description: '微信充值',
+    timestamp: new Date('2024-01-15'),
+    status: 'completed'
+  },
+  {
+    id: '2',
+    type: 'spend',
+    amount: -20,
+    description: '线稿图生成',
+    timestamp: new Date('2024-01-14'),
+    status: 'completed'
+  },
+  {
+    id: '3',
+    type: 'earn',
+    amount: 50,
+    description: '每日签到奖励',
+    timestamp: new Date('2024-01-13'),
+    status: 'completed'
+  },
+  {
+    id: '4',
+    type: 'spend',
+    amount: -30,
+    description: '三视图生成',
+    timestamp: new Date('2024-01-12'),
+    status: 'completed'
+  },
+  {
+    id: '5',
+    type: 'recharge',
+    amount: 300,
+    description: '管理员充值',
+    timestamp: new Date('2024-01-10'),
+    status: 'completed'
+  }
+]
+
+// Tab组件 - 使用memo优化
+const TabButton = memo(({ 
+  tab, 
+  isActive, 
+  onClick 
+}: { 
+  tab: typeof TABS_CONFIG[number]
+  isActive: boolean
+  onClick: () => void 
+}) => {
+  const Icon = tab.icon
+  
+  return (
+    <button
+      onClick={onClick}
+      className={`tab-button-base w-full flex items-center gap-md px-lg py-md rounded-lg transition-all duration-200 ${
+        isActive 
+          ? 'tab-button-active shadow-md transform scale-105' 
+          : 'tab-button-inactive hover:scale-102'
+      }`}
+      aria-pressed={isActive}
+      aria-label={`切换到${tab.label}功能`}
+    >
+      <Icon className={`w-5 h-5 transition-colors duration-200 ${isActive ? 'text-white' : tab.color}`} />
+      <span className={`tab-text font-medium ${isActive ? 'tab-text-active' : 'tab-text-inactive'}`}>
+        {tab.label}
+      </span>
+    </button>
+  )
+})
+
+TabButton.displayName = 'TabButton'
+
+// 头部组件 - 使用memo优化
+const Header = memo(({ 
+  user, 
+  onLogout, 
+  onNavigate, 
+  onShowPoints,
+  currentPoints,
+  totalPoints 
+}: {
+  user: any
+  onLogout: () => void
+  onNavigate: (path: string) => void
+  onShowPoints: () => void
+  currentPoints: number
+  totalPoints: number
+}) => {
+  const logoutRef = useRef<HTMLButtonElement>(null)
+  
+  // 性能监控
+  useEffect(() => {
+    performance.mark('component-header-start')
+    return () => {
+      performance.mark('component-header-end')
+      performance.measure('component-header', 'component-header-start', 'component-header-end')
+    }
+  }, [])
+  
+  return (
+    <header className="bg-white border-b-2 border-neutral-300 shadow-sm">
+      <div className="max-w-[1400px] mx-auto px-xxxl h-32 flex items-center justify-between">
+        <div className="flex items-center">
+          <img 
+            src="/images/logo.png" 
+            alt="香蕉AI工作室" 
+            className="h-48 w-auto transition-transform duration-300 hover:scale-105" 
+          />
+          <h1 className="logo-text ml-lg">香蕉AI工作室</h1>
+        </div>
+        
+        <div className="flex items-center gap-md">
+          <button
+            onClick={onShowPoints}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-50 border-2 border-primary-200 rounded-lg hover:bg-primary-100 transition-colors duration-200"
+            aria-label={`当前积分: ${currentPoints}/${totalPoints}`}
+          >
+            <Coins className="w-4 h-4 text-primary-600" />
+            <span className="text-primary-700 font-semibold">
+              我的积分账户: {currentPoints}/{totalPoints}
+            </span>
+          </button>
+          
+          <button
+            onClick={() => onNavigate('/admin')}
+            className="flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-300 rounded-lg hover:bg-neutral-200 transition-colors duration-200"
+          >
+            <Settings className="w-4 h-4 text-neutral-600" />
+            <span className="text-neutral-700 font-semibold">管理后台</span>
+          </button>
+          
+          <div className="user-info">
+            <span className="text-neutral-700 font-semibold">{user?.email}</span>
+          </div>
+          <button 
+            ref={logoutRef}
+            onClick={onLogout}
+            className="logout-button flex items-center gap-2 px-4 py-2 bg-red-50 border-2 border-red-300 rounded-lg hover:bg-red-100 transition-all duration-200 hover:scale-105"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="font-semibold">退出登录</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  )
+})
+
+Header.displayName = 'Header'
+
+// 侧边栏组件 - 使用memo优化
+const Sidebar = memo(({ 
+  activeTab, 
+  onTabChange 
+}: { 
+  activeTab: Tab
+  onTabChange: (tab: Tab) => void
+}) => {
+  return (
+    <aside className="w-[200px] bg-white border-r-2 border-neutral-300">
+      <nav className="p-lg space-y-sm">
+        {TABS_CONFIG.map((tab) => (
+          <TabButton
+            key={tab.id}
+            tab={tab}
+            isActive={activeTab === tab.id}
+            onClick={() => onTabChange(tab.id)}
+          />
+        ))}
+      </nav>
+    </aside>
+  )
+})
+
+Sidebar.displayName = 'Sidebar'
+
+// 主页面组件
 export default function MainPage() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<Tab>('line-art')
   
-  // 所有功能共享的主图片状态
+  // 使用useRef优化频繁变化的状态
+  const stateRef = useRef({
+    activeTab: 'line-art' as Tab,
+    isGenerating: false,
+    showPointsModal: false,
+    currentPoints: 150,
+    totalPoints: 500,
+    lineArtResult: '',
+    multiViewResult: '',
+    backgroundResult: '',
+  })
+  
   const [sharedImage, setSharedImage] = useState<ImageState>({ file: null, previewUrl: '' })
-  // 背景替换功能的背景图片（独立状态）
   const [backgroundImage, setBackgroundImage] = useState<ImageState>({ file: null, previewUrl: '' })
-  // 全局生图加载状态
-  const [isGenerating, setIsGenerating] = useState(false)
-  // 每个功能的独立结果URL状态（防止切换tab时丢失）
-  const [lineArtResult, setLineArtResult] = useState<string>('')
-  const [multiViewResult, setMultiViewResult] = useState<string>('')
-  const [backgroundResult, setBackgroundResult] = useState<string>('')
-
-  // 积分系统状态
-  const [showPointsModal, setShowPointsModal] = useState(false)
-  const [currentPoints, setCurrentPoints] = useState(150) // 当前可用积分
-  const [totalPoints, setTotalPoints] = useState(500) // 总积分
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: '1',
-      type: 'recharge',
-      amount: 100,
-      description: '微信充值',
-      timestamp: new Date('2024-01-15'),
-      status: 'completed'
-    },
-    {
-      id: '2',
-      type: 'spend',
-      amount: -20,
-      description: '线稿图生成',
-      timestamp: new Date('2024-01-14'),
-      status: 'completed'
-    },
-    {
-      id: '3',
-      type: 'earn',
-      amount: 50,
-      description: '每日签到奖励',
-      timestamp: new Date('2024-01-13'),
-      status: 'completed'
-    },
-    {
-      id: '4',
-      type: 'spend',
-      amount: -30,
-      description: '三视图生成',
-      timestamp: new Date('2024-01-12'),
-      status: 'completed'
-    },
-    {
-      id: '5',
-      type: 'recharge',
-      amount: 300,
-      description: '管理员充值',
-      timestamp: new Date('2024-01-10'),
-      status: 'completed'
-    }
-  ])
-
-  const handleLogout = async () => {
+  const [transactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS)
+  
+  // 使用useCallback优化事件处理函数
+  const handleLogout = useCallback(async () => {
     try {
       await signOut()
     } catch (error) {
       console.error('退出失败:', error)
     }
-  }
+  }, [signOut])
 
-  const tabs = [
-    {
-      id: 'line-art' as Tab,
-      label: '线稿图',
-      icon: Pen,
-      color: 'text-secondary-500',
-    },
-    {
-      id: 'multi-view' as Tab,
-      label: '三视图',
-      icon: Box,
-      color: 'text-purple-500',
-    },
-    {
-      id: 'background' as Tab,
-      label: '换场景',
-      icon: ImageIcon,
-      color: 'text-green-500',
-    },
-  ]
+  const handleTabChange = useCallback((tab: Tab) => {
+    performance.mark('tab-change-start')
+    stateRef.current.activeTab = tab
+    // 使用状态更新来触发重新渲染
+    setActiveTab(tab)
+    performance.mark('tab-change-end')
+    performance.measure('tab-change', 'tab-change-start', 'tab-change-end')
+  }, [])
+
+  const handleShowPoints = useCallback(() => {
+    stateRef.current.showPointsModal = true
+    setShowPointsModal(true)
+  }, [])
+
+  const handleNavigate = useCallback((path: string) => {
+    navigate(path)
+  }, [navigate])
+
+  // 使用useMemo优化计算属性
+  const tabs = useMemo(() => TABS_CONFIG, [])
+  
+  // 使用useState来管理需要触发渲染的状态
+  const [activeTab, setActiveTab] = useState<Tab>(stateRef.current.activeTab)
+  const [isGenerating, setIsGenerating] = useState(stateRef.current.isGenerating)
+  const [showPointsModal, setShowPointsModal] = useState(stateRef.current.showPointsModal)
+  const [lineArtResult, setLineArtResult] = useState(stateRef.current.lineArtResult)
+  const [multiViewResult, setMultiViewResult] = useState(stateRef.current.multiViewResult)
+  const [backgroundResult, setBackgroundResult] = useState(stateRef.current.backgroundResult)
+  
+  // 同步ref和state
+  useEffect(() => {
+    stateRef.current = {
+      ...stateRef.current,
+      activeTab,
+      isGenerating,
+      showPointsModal,
+      lineArtResult,
+      multiViewResult,
+      backgroundResult
+    }
+  }, [activeTab, isGenerating, showPointsModal, lineArtResult, multiViewResult, backgroundResult])
+
+  // 性能监控
+  useEffect(() => {
+    performance.mark('component-mainpage-start')
+    return () => {
+      performance.mark('component-mainpage-end')
+      performance.measure('component-mainpage', 'component-mainpage-start', 'component-mainpage-end')
+    }
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* 头部导航栏 */}
-      <header className="bg-white border-b-2 border-neutral-300">
-        <div className="max-w-[1400px] mx-auto px-xxxl h-32 flex items-center justify-between">
-          <div className="flex items-center">
-            <img src="/images/logo.png" alt="香蕉AI工作室" className="h-48 w-auto" />
-            <h1 className="logo-text ml-lg">香蕉AI工作室</h1>
-          </div>
-          
-          {/* 用户信息和积分账户 */}
-          <div className="flex items-center gap-md">
-            {/* 积分账户显示 */}
-            <button
-              onClick={() => setShowPointsModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-50 border-2 border-primary-200 rounded-lg hover:bg-primary-100 transition-colors"
-            >
-              <Coins className="w-4 h-4 text-primary-600" />
-              <span className="text-primary-700 font-semibold">
-                我的积分账户: {currentPoints}/{totalPoints}
-              </span>
-            </button>
-            
-            {/* 管理员入口 (仅在开发/测试环境显示) */}
-            <button
-              onClick={() => navigate('/admin')}
-              className="flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-300 rounded-lg hover:bg-neutral-200 transition-colors"
-            >
-              <Settings className="w-4 h-4 text-neutral-600" />
-              <span className="text-neutral-700 font-semibold">管理后台</span>
-            </button>
-            
-            <div className="user-info">
-              <span className="text-neutral-700 font-semibold">{user?.email}</span>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="logout-button flex items-center gap-2 px-4 py-2 bg-red-50 border-2 border-red-300 rounded-lg hover:bg-red-100 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="font-semibold">退出登录</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header
+        user={user}
+        onLogout={handleLogout}
+        onNavigate={handleNavigate}
+        onShowPoints={handleShowPoints}
+        currentPoints={stateRef.current.currentPoints}
+        totalPoints={stateRef.current.totalPoints}
+      />
 
-      {/* 主体区域：左侧Tab + 右侧内容 */}
       <div className="flex flex-1">
-        {/* 左侧Tab导航 */}
-        <aside className="w-[200px] bg-white border-r-2 border-neutral-300">
-          <nav className="p-lg space-y-sm">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.id
-              
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`tab-button-base w-full flex items-center gap-md px-lg py-md rounded-lg ${
-                    isActive 
-                      ? 'tab-button-active' 
-                      : 'tab-button-inactive'
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : tab.color}`} />
-                  <span className={`tab-text ${isActive ? 'tab-text-active' : 'tab-text-inactive'}`}>{tab.label}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </aside>
+        <Sidebar 
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+        />
 
-        {/* 右侧主内容区 */}
         <main className="flex-1 max-w-[1200px] mx-auto px-xxxl py-xxxl">
-        {activeTab === 'line-art' && (
-          <LineArtGenerator 
-            imageState={sharedImage}
-            setImageState={setSharedImage}
-            isGenerating={isGenerating}
-            setIsGenerating={setIsGenerating}
-            resultUrl={lineArtResult}
-            setResultUrl={setLineArtResult}
-          />
-        )}
-        {activeTab === 'multi-view' && (
-          <MultiViewGenerator 
-            imageState={sharedImage}
-            setImageState={setSharedImage}
-            isGenerating={isGenerating}
-            setIsGenerating={setIsGenerating}
-            resultUrl={multiViewResult}
-            setResultUrl={setMultiViewResult}
-          />
-        )}
-        {activeTab === 'background' && (
-          <BackgroundReplacer 
-            subjectImage={sharedImage}
-            setSubjectImage={setSharedImage}
-            backgroundImage={backgroundImage}
-            setBackgroundImage={setBackgroundImage}
-            isGenerating={isGenerating}
-            setIsGenerating={setIsGenerating}
-            resultUrl={backgroundResult}
-            setResultUrl={setBackgroundResult}
-          />
-        )}
+          <React.Suspense fallback={<LoadingSpinner message="正在加载功能..." />}>
+            {activeTab === 'line-art' && (
+              <LineArtGenerator 
+                imageState={sharedImage}
+                setImageState={setSharedImage}
+                isGenerating={isGenerating}
+                setIsGenerating={setIsGenerating}
+                resultUrl={lineArtResult}
+                setResultUrl={setLineArtResult}
+              />
+            )}
+            {activeTab === 'multi-view' && (
+              <MultiViewGenerator 
+                imageState={sharedImage}
+                setImageState={setSharedImage}
+                isGenerating={isGenerating}
+                setIsGenerating={setIsGenerating}
+                resultUrl={multiViewResult}
+                setResultUrl={setMultiViewResult}
+              />
+            )}
+            {activeTab === 'background' && (
+              <BackgroundReplacer 
+                subjectImage={sharedImage}
+                setSubjectImage={setSharedImage}
+                backgroundImage={backgroundImage}
+                setBackgroundImage={setBackgroundImage}
+                isGenerating={isGenerating}
+                setIsGenerating={setIsGenerating}
+                resultUrl={backgroundResult}
+                setResultUrl={setBackgroundResult}
+              />
+            )}
+          </React.Suspense>
         </main>
       </div>
       
-      {/* 积分账户弹窗 */}
       <PointsAccountModal
         isOpen={showPointsModal}
-        onClose={() => setShowPointsModal(false)}
-        currentPoints={currentPoints}
-        totalPoints={totalPoints}
+        onClose={() => {
+          stateRef.current.showPointsModal = false
+          setShowPointsModal(false)
+        }}
+        currentPoints={stateRef.current.currentPoints}
+        totalPoints={stateRef.current.totalPoints}
         transactions={transactions}
       />
     </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Mail, Lock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { validateEmail, validateInput, SecurityLogger } from '../../lib/validation'
 
 interface LoginFormProps {
   onSwitchToRegister: () => void
@@ -12,18 +13,85 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({})
   
   // 输入框焦点状态
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
+  // 实时验证邮箱
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setEmail(value)
+    
+    if (value.trim() !== '') {
+      const emailResult = validateEmail(value)
+      setValidationErrors(prev => ({
+        ...prev,
+        email: emailResult.isValid ? undefined : emailResult.errors[0]
+      }))
+    } else {
+      setValidationErrors(prev => ({ ...prev, email: undefined }))
+    }
+  }
+
+  // 实时验证密码
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setPassword(value)
+    
+    if (value.trim() !== '') {
+      const passwordResult = validateInput(value, { minLength: 8, maxLength: 128 })
+      setValidationErrors(prev => ({
+        ...prev,
+        password: passwordResult.isValid ? undefined : passwordResult.errors[0]
+      }))
+    } else {
+      setValidationErrors(prev => ({ ...prev, password: undefined }))
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    
+    // 前端输入验证
+    const emailResult = validateEmail(email)
+    const passwordResult = validateInput(password, { minLength: 8, maxLength: 128 })
+    
+    const validationErrors: { email?: string; password?: string } = {}
+    
+    if (!emailResult.isValid) {
+      validationErrors.email = emailResult.errors[0]
+    }
+    
+    if (!passwordResult.isValid) {
+      validationErrors.password = passwordResult.errors[0]
+    }
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setValidationErrors(validationErrors)
+      setError('请检查输入格式')
+      SecurityLogger.log('WARNING', '登录表单验证失败', { email, validationErrors })
+      return
+    }
+    
     setLoading(true)
 
     try {
-      await signIn(email, password)
+      // 使用清理后的输入
+      const sanitizedEmail = emailResult.sanitized
+      const sanitizedPassword = passwordResult.sanitized
+      
+      await signIn(sanitizedEmail, sanitizedPassword)
+      SecurityLogger.log('INFO', '用户登录成功', { email: sanitizedEmail })
     } catch (err: any) {
+      // 记录安全日志
+      SecurityLogger.log('WARNING', '用户登录失败', { 
+        email, 
+        error: err.message,
+        ip: window.location.hostname
+      })
+      
       // 将技术错误信息转换为友好提示
       let errorMessage = '登录失败，请稍后重试'
       
@@ -76,13 +144,18 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               onFocus={() => setFocusedField('email')}
               onBlur={() => setFocusedField(null)}
-              className={focusedField === 'email' ? 'auth-input' : 'auth-input pl-12'}
+              className={`auth-input ${focusedField === 'email' ? 'auth-input pl-12' : 'auth-input pl-12'} ${
+                validationErrors.email ? 'border-red-500' : ''
+              }`}
               placeholder="请输入邮箱"
               required
             />
+            {validationErrors.email && (
+              <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
+            )}
           </div>
         </div>
 
@@ -98,13 +171,18 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               onFocus={() => setFocusedField('password')}
               onBlur={() => setFocusedField(null)}
-              className={focusedField === 'password' ? 'auth-input' : 'auth-input pl-12'}
+              className={`auth-input ${focusedField === 'password' ? 'auth-input pl-12' : 'auth-input pl-12'} ${
+                validationErrors.password ? 'border-red-500' : ''
+              }`}
               placeholder="请输入密码"
               required
             />
+            {validationErrors.password && (
+              <p className="text-red-500 text-xs mt-1">{validationErrors.password}</p>
+            )}
           </div>
         </div>
 

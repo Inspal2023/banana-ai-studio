@@ -1,9 +1,132 @@
 import { createHash, createHmac } from 'node:crypto';
 
+// SQL注入检测模式
+const SQL_INJECTION_PATTERNS = [
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)/i,
+  /(\b(UNION|AND|OR)\b\s+\w+\s*=\s*\w+)/i,
+  /(\b(SCRIPT|JAVASCRIPT|VBSCRIPT|ONLOAD|ONERROR)\b)/i,
+  /('|(\\x27)|(\\')|(\\")|(\\x22))/,
+  /(;|--|\/\*|\*\/)/,
+  /(\b(OR|AND)\b\s+['"]?1['"]?=['"]?1)/i,
+];
+
+// XSS检测模式
+const XSS_PATTERNS = [
+  /<script[^>]*>.*?<\/script>/gi,
+  /<iframe[^>]*>.*?<\/iframe>/gi,
+  /<object[^>]*>.*?<\/object>/gi,
+  /<embed[^>]*>.*?<\/embed>/gi,
+  /<link[^>]*>/gi,
+  /<style[^>]*>.*?<\/style>/gi,
+  /<img[^>]*src[^>]*javascript:/gi,
+  /on\w+\s*=/gi,
+  /javascript:/gi,
+  /vbscript:/gi,
+  /data:text\/html/gi,
+];
+
+// 安全日志记录
+function logSecurityEvent(type: 'WARNING' | 'ERROR' | 'INFO', message: string, details?: any) {
+  console.log(`[SECURITY ${type}] ${new Date().toISOString()} - ${message}`, details);
+}
+
+// 输入清理函数
+function sanitizeInput(input: string): string {
+  if (!input) return '';
+  
+  let sanitized = input.trim();
+  
+  // 移除控制字符
+  sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  
+  // 转义特殊字符
+  sanitized = sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+  
+  return sanitized;
+}
+
+// 检测SQL注入
+function detectSQLInjection(input: string): boolean {
+  return SQL_INJECTION_PATTERNS.some(pattern => pattern.test(input));
+}
+
+// 检测XSS
+function detectXSS(input: string): boolean {
+  return XSS_PATTERNS.some(pattern => pattern.test(input));
+}
+
+// 验证邮箱格式
+function validateEmail(email: string): { isValid: boolean; sanitized: string; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (!email || email.trim() === '') {
+    errors.push('邮箱不能为空');
+    return { isValid: false, sanitized: '', errors };
+  }
+  
+  // 长度检查
+  if (email.length > 254) {
+    errors.push('邮箱长度不能超过254个字符');
+  }
+  
+  // 格式检查
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    errors.push('邮箱格式不正确');
+  }
+  
+  // SQL注入检测
+  if (detectSQLInjection(email)) {
+    errors.push('检测到可能的SQL注入攻击');
+  }
+  
+  // XSS检测
+  if (detectXSS(email)) {
+    errors.push('检测到可能的XSS攻击');
+  }
+  
+  // 清理输入
+  const sanitized = sanitizeInput(email);
+  
+  return {
+    isValid: errors.length === 0,
+    sanitized,
+    errors
+  };
+}
+
+// 频率限制检查
+const requestHistory = new Map<string, number[]>();
+
+function checkRateLimit(identifier: string, maxAttempts: number = 5, timeWindow: number = 60000): boolean {
+  const now = Date.now();
+  const attempts = requestHistory.get(identifier) || [];
+  
+  // 清理过期记录
+  const recentAttempts = attempts.filter(time => now - time < timeWindow);
+  
+  if (recentAttempts.length >= maxAttempts) {
+    logSecurityEvent('WARNING', '触发频率限制', { identifier, attempts: recentAttempts.length });
+    return false;
+  }
+  
+  // 记录当前尝试
+  recentAttempts.push(now);
+  requestHistory.set(identifier, recentAttempts);
+  
+  return true;
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-forwarded-for, x-real-ip',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
   };
@@ -13,16 +136,41 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email } = await req.json();
-
-    // 验证邮箱格式
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (error) {
+      logSecurityEvent('WARNING', '无效的JSON请求', { error: error.message });
       return new Response(
-        JSON.stringify({ error: { message: '邮箱格式不正确' } }),
+        JSON.stringify({ error: { message: '请求格式错误' } }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { email } = requestData;
+
+    // 安全验证输入
+    const emailValidation = validateEmail(email);
+    
+    if (!emailValidation.isValid) {
+      logSecurityEvent('WARNING', '邮箱验证失败', { email, errors: emailValidation.errors });
+      return new Response(
+        JSON.stringify({ error: { message: emailValidation.errors[0] } }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 获取客户端IP进行频率限制
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    if (!checkRateLimit(clientIP)) {
+      return new Response(
+        JSON.stringify({ error: { message: '请求过于频繁，请稍后再试' } }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 使用验证后的邮箱
+    const validatedEmail = emailValidation.sanitized;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -39,7 +187,7 @@ Deno.serve(async (req) => {
     );
 
     const usersData = await checkUserResponse.json();
-    const existingUser = usersData.users?.find((user: any) => user.email === email);
+    const existingUser = usersData.users?.find((user: any) => user.email === validatedEmail);
     
     if (existingUser) {
       return new Response(
@@ -50,7 +198,7 @@ Deno.serve(async (req) => {
 
     // 检查60秒内是否已发送验证码（防止滥用）
     const checkResponse = await fetch(
-      `${supabaseUrl}/rest/v1/email_verification_codes?email=eq.${email}&created_at=gte.${new Date(Date.now() - 60000).toISOString()}&order=created_at.desc&limit=1`,
+      `${supabaseUrl}/rest/v1/email_verification_codes?email=eq.${encodeURIComponent(validatedEmail)}&created_at=gte.${new Date(Date.now() - 60000).toISOString()}&order=created_at.desc&limit=1`,
       {
         headers: {
           'apikey': serviceRoleKey,
@@ -81,7 +229,7 @@ Deno.serve(async (req) => {
         'Prefer': 'return=representation',
       },
       body: JSON.stringify({
-        email,
+        email: validatedEmail,
         code,
         expires_at: expiresAt,
         used: false,
@@ -111,13 +259,14 @@ Deno.serve(async (req) => {
       secretId,
       secretKey,
       fromEmail,
-      email,
+      validatedEmail,
       '【香蕉AI工作室】邮箱验证码',
       templateId,
       { code }
     );
 
-    console.log(`验证码已通过腾讯云 SES 发送到 ${email}`);
+    console.log(`验证码已通过腾讯云 SES 发送到 ${validatedEmail}`);
+    logSecurityEvent('INFO', '验证码发送成功', { email: validatedEmail });
     console.log(`RequestId: ${result.RequestId}`);
 
     return new Response(
@@ -131,17 +280,13 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('发送验证码错误:', error);
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: 'SEND_CODE_FAILED',
-          message: error instanceof Error ? error.message : '发送验证码失败',
-        },
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+    const errorMessage = error instanceof Error ? error.message : '发送验证码失败';
+    logSecurityEvent('ERROR', '发送验证码错误', { error: errorMessage });
+    
+    // 防止敏感信息泄露
+    const safeErrorMessage = errorMessage.includes('API') || errorMessage.includes('密钥') || errorMessage.includes('配置') 
+      ? '服务器配置错误，请联系管理员' 
+      : errorMessage;
 });
 
 /**
