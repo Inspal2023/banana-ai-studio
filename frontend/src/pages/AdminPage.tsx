@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import AdminPointsManagement from '../components/AdminPointsManagement'
 
 interface User {
@@ -26,6 +27,7 @@ interface Transaction {
 
 export default function AdminPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   
   // 模拟数据
   const [users, setUsers] = useState<User[]>([
@@ -194,7 +196,10 @@ export default function AdminPage() {
               <h1 className="text-2xl font-bold text-neutral-900">管理员后台</h1>
             </div>
             <div className="text-sm text-neutral-500">
-              积分系统管理
+              <div className="text-right">
+                <p>积分系统管理</p>
+                <p className="text-xs text-neutral-400">当前管理员：{user?.email}</p>
+              </div>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { X, QrCode, MessageCircle, CreditCard } from 'lucide-react'
+import { X, QrCode, MessageCircle, Users } from 'lucide-react'
 
 interface PointsRechargeModalProps {
   isOpen: boolean
@@ -21,7 +21,7 @@ export default function PointsRechargeModal({ isOpen, onClose }: PointsRechargeM
       <div className="bg-white rounded-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         {/* 头部 */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-200 sticky top-0 bg-white">
-          <h2 className="text-xl font-bold text-neutral-900">积分充值</h2>
+          <h2 className="text-xl font-bold text-neutral-900">联系管理员充值</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
@@ -73,62 +73,82 @@ export default function PointsRechargeModal({ isOpen, onClose }: PointsRechargeM
             </div>
           </div>
 
-          {/* 微信二维码充值 */}
+          {/* 管理员微信二维码 */}
           <div>
-            <h3 className="text-lg font-semibold text-neutral-900 mb-4">微信扫码充值</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 mb-4">联系管理员微信</h3>
             <div className="bg-neutral-50 rounded-lg p-6 text-center">
               <div className="flex flex-col items-center space-y-4">
                 <div className="w-48 h-48 bg-white border-2 border-neutral-200 rounded-lg flex items-center justify-center">
                   <QrCode className="w-32 h-32 text-neutral-400" />
-                  {/* 这里应该显示实际的微信二维码 */}
+                  {/* 这里应该显示管理员微信二维码 */}
                 </div>
                 <div className="text-sm text-neutral-600">
-                  <p>使用微信扫描二维码完成支付</p>
-                  <p className="text-semantic-warning mt-1">
-                    支付完成后系统将自动到账，请耐心等待
+                  <p className="text-primary-600 font-medium">
+                    扫码下方二维码添加管理员微信
+                  </p>
+                  <p className="text-semantic-success mt-1">
+                    联系管理员进行充值，手动添加积分
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 充值说明 */}
+          {/* 线下充值流程说明 */}
           <div>
-            <h3 className="text-lg font-semibold text-neutral-900 mb-4">充值说明</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 mb-4">线下充值流程</h3>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <MessageCircle className="w-5 h-5 text-blue-500 mt-0.5" />
-                <div className="text-sm text-blue-800 space-y-2">
-                  <p><strong>联系管理员充值：</strong></p>
-                  <p>如需大额充值或遇到问题，请联系管理员：</p>
-                  <div className="bg-white rounded p-3 mt-2">
+                <Users className="w-5 h-5 text-blue-500 mt-0.5" />
+                <div className="text-sm text-blue-800 space-y-3">
+                  <p><strong>请按照以下步骤操作：</strong></p>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">1</span>
+                      <span>查看上方积分价格表，选择合适的充值方案</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">2</span>
+                      <span>扫描二维码添加管理员微信</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
+                      <span>通过微信联系管理员进行充值</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">4</span>
+                      <span>管理员核实后手动添加积分到账户</span>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded p-3 mt-3">
+                    <p className="font-medium text-blue-900 mb-1">联系方式：</p>
                     <p>📱 微信：banana-ai-admin</p>
                     <p>📧 邮箱：admin@banana-ai.com</p>
-                    <p>💬 在线客服：工作日 9:00-18:00</p>
+                    <p>🕐 客服时间：工作日 9:00-18:00</p>
                   </div>
                   <p className="text-semantic-warning mt-2">
-                    ⚠️ 请确保支付截图，以便核实充值金额
+                    ⚠️ 充值后请保留微信聊天记录，以便核实充值信息
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 支付方式说明 */}
+          {/* 充值提示 */}
           <div>
-            <h3 className="text-lg font-semibold text-neutral-900 mb-4">支付方式</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg">
-                <QrCode className="w-6 h-6 text-green-500" />
-                <span className="font-medium">微信支付</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg">
-                <CreditCard className="w-6 h-6 text-blue-500" />
-                <span className="font-medium">支付宝</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg">
-                <MessageCircle className="w-6 h-6 text-purple-500" />
-                <span className="font-medium">联系客服</span>
+            <h3 className="text-lg font-semibold text-neutral-900 mb-4">温馨提示</h3>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <MessageCircle className="w-5 h-5 text-yellow-500 mt-0.5" />
+                <div className="text-sm text-yellow-800 space-y-2">
+                  <p><strong>充值前请注意：</strong></p>
+                  <ul className="space-y-1 ml-4">
+                    <li>• 积分充值后不可退款，请谨慎选择充值金额</li>
+                    <li>• 大额充值可联系管理员获得更多优惠</li>
+                    <li>• 充值后积分立即到账，无需等待</li>
+                    <li>• 如有疑问，请随时联系管理员</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -143,8 +163,11 @@ export default function PointsRechargeModal({ isOpen, onClose }: PointsRechargeM
             >
               稍后充值
             </button>
-            <button className="flex-1 px-4 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg transition-colors">
-              联系客服
+            <button 
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg transition-colors"
+            >
+              开始充值
             </button>
           </div>
         </div>

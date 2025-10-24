@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Users, 
   Coins, 
@@ -10,8 +10,17 @@ import {
   Trash2,
   Eye,
   Settings,
-  BarChart3
+  BarChart3,
+  QrCode,
+  Phone,
+  MessageCircle,
+  UserCog,
+  Crown,
+  Shield,
+  Save
 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import ImageUpload from './ImageUpload'
 
 interface User {
   id: string
@@ -42,6 +51,22 @@ interface AdminPointsProps {
   onUpdateUserPoints: (userId: string, newPoints: number) => void
 }
 
+interface AdminSettings {
+  id: string
+  email: string
+  role: 'admin' | 'super_admin'
+  wechatQRCode?: string
+  contactInfo?: {
+    wechat?: string
+    qq?: string
+    phone?: string
+    email?: string
+  }
+  rechargeInstructions?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
 export default function AdminPointsManagement({ 
   users, 
   transactions, 
@@ -49,12 +74,61 @@ export default function AdminPointsManagement({
   onDeductPoints,
   onUpdateUserPoints 
 }: AdminPointsProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'settings'>('users')
+  const { user } = useAuth()
+  const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'settings' | 'wechat'>('users')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedUser, setSelectedUser] = useState<string>('')
   const [pointsAmount, setPointsAmount] = useState('')
   const [reason, setReason] = useState('')
   const [isAdding, setIsAdding] = useState(false)
+  
+  // 管理员设置相关状态
+  const [adminSettings, setAdminSettings] = useState<AdminSettings[]>([
+    {
+      id: '1',
+      email: 'admin1@example.com',
+      role: 'super_admin',
+      wechatQRCode: '',
+      contactInfo: {
+        wechat: '',
+        qq: '',
+        phone: '',
+        email: ''
+      },
+      rechargeInstructions: '请扫描下方微信二维码进行充值，充值后请联系管理员确认。',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: '2',
+      email: 'admin2@example.com',
+      role: 'admin',
+      wechatQRCode: '',
+      contactInfo: {
+        wechat: '',
+        qq: '',
+        phone: '',
+        email: ''
+      },
+      rechargeInstructions: '请扫描下方微信二维码进行充值，充值后请联系管理员确认。',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ])
+  
+  const [selectedAdminId, setSelectedAdminId] = useState<string>('1')
+  const [uploadedQRCode, setUploadedQRCode] = useState<string>('')
+  const [contactInfo, setContactInfo] = useState<{
+    wechat?: string
+    qq?: string
+    phone?: string
+    email?: string
+  }>({})
+  const [rechargeInstructions, setRechargeInstructions] = useState('')
+
+  // 获取当前管理员信息
+  const currentAdmin = adminSettings.find(admin => admin.id === selectedAdminId)
+  const isSuperAdmin = currentAdmin?.role === 'super_admin'
 
   // 过滤用户
   const filteredUsers = users.filter(user => 
@@ -98,6 +172,61 @@ export default function AdminPointsManagement({
       setIsAdding(false)
     }
   }
+
+  // 处理二维码上传
+  const handleQRCodeUpload = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const result = e.target?.result as string
+      setUploadedQRCode(result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // 删除二维码
+  const handleRemoveQRCode = () => {
+    setUploadedQRCode('')
+  }
+
+  // 保存管理员设置
+  const handleSaveAdminSettings = () => {
+    if (!currentAdmin) return
+
+    const updatedSettings = adminSettings.map(admin => {
+      if (admin.id === selectedAdminId) {
+        return {
+          ...admin,
+          wechatQRCode: uploadedQRCode,
+          contactInfo: contactInfo,
+          rechargeInstructions: rechargeInstructions,
+          updatedAt: new Date()
+        }
+      }
+      return admin
+    })
+
+    setAdminSettings(updatedSettings)
+    alert('设置保存成功！')
+  }
+
+  // 当选中的管理员改变时，重新加载数据
+  useEffect(() => {
+    if (currentAdmin) {
+      if (currentAdmin.contactInfo) {
+        setContactInfo(currentAdmin.contactInfo)
+      } else {
+        setContactInfo({
+          wechat: '',
+          qq: '',
+          phone: '',
+          email: ''
+        })
+      }
+      
+      setRechargeInstructions(currentAdmin.rechargeInstructions || '')
+      setUploadedQRCode(currentAdmin.wechatQRCode || '')
+    }
+  }, [selectedAdminId])
 
   const getTransactionTypeText = (type: Transaction['type']) => {
     switch (type) {
@@ -224,6 +353,17 @@ export default function AdminPointsManagement({
             }`}
           >
             系统设置
+          </button>
+          <button
+            onClick={() => setActiveTab('wechat')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+              activeTab === 'wechat'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700'
+            }`}
+          >
+            <QrCode className="w-4 h-4" />
+            微信二维码
           </button>
         </nav>
       </div>
@@ -502,6 +642,241 @@ export default function AdminPointsManagement({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'wechat' && (
+        <div className="space-y-6">
+          {/* 权限提示 */}
+          {!isSuperAdmin && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <Shield className="w-5 h-5" />
+                <span className="font-medium">权限说明</span>
+              </div>
+              <p className="text-yellow-700 mt-2 text-sm">
+                您只能管理自己的微信二维码和联系信息设置。如需管理其他管理员设置，请联系超级管理员。
+              </p>
+            </div>
+          )}
+
+          {/* 管理员选择器（超级管理员可见） */}
+          {isSuperAdmin && (
+            <div className="bg-white rounded-lg border border-neutral-200 p-6">
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                <UserCog className="w-5 h-5" />
+                管理员管理
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    选择管理员
+                  </label>
+                  <select
+                    value={selectedAdminId}
+                    onChange={(e) => setSelectedAdminId(e.target.value)}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    {adminSettings.map(admin => (
+                      <option key={admin.id} value={admin.id}>
+                        <div className="flex items-center gap-2">
+                          {admin.role === 'super_admin' ? <Crown className="w-4 h-4" /> : <UserCog className="w-4 h-4" />}
+                          {admin.email} ({admin.role === 'super_admin' ? '超级管理员' : '管理员'})
+                        </div>
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <div className="text-sm text-neutral-600">
+                    当前选择：{currentAdmin?.email}
+                    {currentAdmin?.role === 'super_admin' && (
+                      <span className="ml-2 inline-flex items-center gap-1 text-yellow-600">
+                        <Crown className="w-4 h-4" />
+                        超级管理员
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 微信二维码管理 */}
+          <div className="bg-white rounded-lg border border-neutral-200 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+              <QrCode className="w-5 h-5" />
+              微信二维码设置
+            </h3>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 左侧：二维码上传 */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    微信收款二维码
+                  </label>
+                  <ImageUpload
+                    onImageSelect={handleQRCodeUpload}
+                    onImageRemove={handleRemoveQRCode}
+                    previewUrl={uploadedQRCode}
+                    label="点击上传微信收款二维码"
+                    accept="image/*"
+                  />
+                  <p className="text-xs text-neutral-500 mt-2">
+                    支持 JPG、PNG 格式，建议尺寸 200x200 像素
+                  </p>
+                </div>
+              </div>
+
+              {/* 右侧：联系信息和说明 */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    联系信息
+                  </label>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="微信号（可选）"
+                      value={contactInfo.wechat}
+                      onChange={(e) => setContactInfo(prev => ({ ...prev, wechat: e.target.value }))}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      placeholder="QQ号（可选）"
+                      value={contactInfo.qq}
+                      onChange={(e) => setContactInfo(prev => ({ ...prev, qq: e.target.value }))}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="手机号（可选）"
+                      value={contactInfo.phone}
+                      onChange={(e) => setContactInfo(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <input
+                      type="email"
+                      placeholder="邮箱（可选）"
+                      value={contactInfo.email}
+                      onChange={(e) => setContactInfo(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    充值说明
+                  </label>
+                  <textarea
+                    placeholder="请输入充值说明..."
+                    value={rechargeInstructions}
+                    onChange={(e) => setRechargeInstructions(e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 保存按钮 */}
+            <div className="mt-6 pt-4 border-t border-neutral-200">
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSaveAdminSettings}
+                  className="px-6 py-2 bg-semantic-success hover:bg-green-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  保存设置
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 预览区域 */}
+          {uploadedQRCode && (
+            <div className="bg-white rounded-lg border border-neutral-200 p-6">
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">用户端预览</h3>
+              <div className="bg-neutral-50 rounded-lg p-6">
+                <div className="max-w-sm mx-auto bg-white rounded-lg shadow-lg p-6">
+                  <div className="text-center space-y-4">
+                    <div className="w-48 h-48 mx-auto">
+                      <img 
+                        src={uploadedQRCode} 
+                        alt="微信二维码" 
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    </div>
+                    <div className="text-sm text-neutral-600 space-y-2">
+                      <p className="font-medium text-neutral-900">扫描二维码进行充值</p>
+                      {contactInfo.wechat && (
+                        <p>微信号：{contactInfo.wechat}</p>
+                      )}
+                      {contactInfo.phone && (
+                        <p>手机号：{contactInfo.phone}</p>
+                      )}
+                    </div>
+                    {rechargeInstructions && (
+                      <div className="text-xs text-neutral-500 bg-neutral-50 rounded p-3">
+                        {rechargeInstructions}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 管理员列表（超级管理员可见） */}
+          {isSuperAdmin && (
+            <div className="bg-white rounded-lg border border-neutral-200 p-6">
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">所有管理员设置</h3>
+              <div className="space-y-4">
+                {adminSettings.map(admin => (
+                  <div key={admin.id} className="border border-neutral-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        {admin.role === 'super_admin' ? (
+                          <Crown className="w-5 h-5 text-yellow-500" />
+                        ) : (
+                          <UserCog className="w-5 h-5 text-blue-500" />
+                        )}
+                        <span className="font-medium">{admin.email}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          admin.role === 'super_admin' 
+                            ? 'bg-yellow-100 text-yellow-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {admin.role === 'super_admin' ? '超级管理员' : '管理员'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedAdminId(admin.id)}
+                        className="px-3 py-1 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded transition-colors"
+                      >
+                        编辑
+                      </button>
+                    </div>
+                    <div className="text-sm text-neutral-600 space-y-1">
+                      <p>微信二维码：{admin.wechatQRCode ? '已设置' : '未设置'}</p>
+                      <p>联系信息：{
+                        Object.values(admin.contactInfo || {}).filter(v => v).length > 0 
+                          ? '已设置' 
+                          : '未设置'
+                      }</p>
+                      <p>充值说明：{admin.rechargeInstructions ? '已设置' : '未设置'}</p>
+                      <p>更新时间：{admin.updatedAt.toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
